@@ -5,7 +5,7 @@ const cors = require('cors');
 
 require('dotenv').config();
 
-// Importa los nuevos módulos
+// Importa los módulos de rutas
 const authRoutes = require('./routes/authRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -13,35 +13,40 @@ const saleRoutes = require('./routes/saleRoutes');
 const productRoutes = require('./routes/productRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const clientesRouter = require('./routes/clientes');
-const proveedoresRouter = require('./routes/proveedores'); // Asegúrate de que este archivo exista
-const { authMiddleware } = require('./middlewares/authMiddleware'); // Solo necesitamos authMiddleware por ahora
+const proveedoresRouter = require('./routes/proveedores');
 
 const prisma = new PrismaClient();
-const app = express();
+const app = express(); // La instancia 'app' debe ser declarada antes de usarse
+
+// --- Configuración de CORS ---
+// Usaremos SOLO ESTA llamada a cors.
+// Asegúrate de que la URL de tu frontend de Vercel sea EXACTA aquí.
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://inventario-app-frontend-low4ipedu-badgomez2727s-projects.vercel.app/'], // <-- ¡Ajusta aquí!
+  origin: ['http://localhost:3000', 'https://inventario-app-frontend-low4ipedu-badgomez2727s-projects.vercel.app'], // ¡Ajusta esta URL a la URL REAL de tu frontend en Vercel!
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
+// Middlewares generales (siempre van después de la declaración de 'app' y cors)
+app.use(express.json()); // Para parsear cuerpos de solicitud JSON
+app.use(express.urlencoded({ extended: true })); // Para parsear cuerpos de solicitud URL-encoded
 
-// --- Rutas de Autenticación ---
-app.use('/auth', authRoutes); // Todas las rutas de autenticación bajo /auth
+// Importa el middleware de autenticación (si es necesario para rutas específicas)
+const { authMiddleware } = require('./middlewares/authMiddleware'); 
 
-// --- Rutas de Prueba (Accesibles sin autenticación, si las necesitas) ---
+// --- Rutas de Autenticación (generalmente no protegidas por authMiddleware si manejan login/registro) ---
+app.use('/auth', authRoutes); 
+
+// --- Ruta de Prueba (accesible públicamente) ---
 app.get('/', (req, res) => {
-  res.send('¡Backend de inventario funcionando con autenticación!');
+  res.send('¡Backend de inventario funcionando correctamente!');
 });
 
 // --- Rutas Protegidas por Autenticación ---
-// TODAS las rutas que vengan DESPUÉS de aquí requerirán un token JWT válido.
-app.use(authMiddleware); // Aplica el middleware a todas las rutas subsiguientes
+// Aplica el middleware authMiddleware a todas las rutas que vengan DESPUÉS de aquí.
+app.use('/api', authMiddleware); // Aplica authMiddleware a todas las rutas que empiecen con /api
 
-
+// Ahora, todas estas rutas están protegidas por authMiddleware
 app.use('/api/productos', productRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/users', userRoutes);
@@ -51,6 +56,7 @@ app.use('/api/clientes', clientesRouter);
 app.use('/api/proveedores', proveedoresRouter);
 
 // Iniciar el servidor
+const PORT = process.env.PORT || 3001; // Render usa PORT=10000, así que process.env.PORT es el importante
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
