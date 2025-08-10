@@ -2,6 +2,11 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://inventario-app-frontend-low4ipedu-badgomez2727s-projects.vercel.app/'], // <-- ¡Ajusta aquí!
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 require('dotenv').config();
 
 // Importa los nuevos módulos
