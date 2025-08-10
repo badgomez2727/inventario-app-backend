@@ -25,7 +25,6 @@ const getGeneralStats = async (req, res) => {
 
 const getInventoryValue = async (req, res) => {
   const companyId = req.companyId;
-
   try {
     const inventoryValueResult = await prisma.product.aggregate({
       where: { companyId },
@@ -35,14 +34,15 @@ const getInventoryValue = async (req, res) => {
       },
     });
 
-    const valorTotalCosto = (
-      (inventoryValueResult._sum.stockActual || 0) * (inventoryValueResult._sum.precioCompra || 0)
-    ).toFixed(2);
+    // Asegúrate de que los valores no sean nulos antes de multiplicar
+    const totalStock = inventoryValueResult._sum.stockActual || 0;
+    const totalPrecioCompra = inventoryValueResult._sum.precioCompra ? parseFloat(inventoryValueResult._sum.precioCompra.toString()) : 0; // Convertir Decimal a float
+
+    const valorTotalCosto = (totalStock * totalPrecioCompra).toFixed(2);
 
     res.json({
       valorTotalCosto: parseFloat(valorTotalCosto),
     });
-
   } catch (error) {
     console.error('Error al obtener el valor del inventario:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
@@ -51,11 +51,10 @@ const getInventoryValue = async (req, res) => {
 
 const getMonthlySales = async (req, res) => {
   const companyId = req.companyId;
-
   try {
     const monthlySales = await prisma.$queryRaw`
       SELECT
-        DATE_FORMAT(fecha_venta, '%Y-%m') AS month,
+        TO_CHAR("fecha_venta", 'YYYY-MM') AS month, -- <-- CAMBIO AQUÍ: Usamos TO_CHAR para PostgreSQL
         SUM(total) AS total
       FROM sales
       WHERE company_id = ${companyId}
@@ -63,14 +62,12 @@ const getMonthlySales = async (req, res) => {
       ORDER BY month;
     `;
     
-    // Formateamos los resultados para que el frontend los entienda
     const formattedSales = monthlySales.map(item => ({
       month: item.month,
       total: parseFloat(item.total),
     }));
 
     res.json(formattedSales);
-
   } catch (error) {
     console.error('Error al obtener el reporte de ventas mensuales:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
