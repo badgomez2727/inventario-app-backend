@@ -67,6 +67,7 @@ CREATE TABLE "sales" (
     "id" SERIAL NOT NULL,
     "company_id" INTEGER NOT NULL,
     "user_id" INTEGER NOT NULL,
+    "client_id" INTEGER,
     "fecha_venta" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "total" DECIMAL(10,2) NOT NULL,
     "estado" VARCHAR(50) NOT NULL,
@@ -87,7 +88,7 @@ CREATE TABLE "sale_items" (
 );
 
 -- CreateTable
-CREATE TABLE "Client" (
+CREATE TABLE "clients" (
     "id" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
     "email" TEXT,
@@ -97,11 +98,11 @@ CREATE TABLE "Client" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Client_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "clients_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Supplier" (
+CREATE TABLE "suppliers" (
     "id" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
     "contacto" TEXT,
@@ -111,7 +112,7 @@ CREATE TABLE "Supplier" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Supplier_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "suppliers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -157,10 +158,19 @@ CREATE INDEX "sales_company_id_idx" ON "sales"("company_id");
 CREATE INDEX "sales_user_id_idx" ON "sales"("user_id");
 
 -- CreateIndex
+CREATE INDEX "sales_client_id_idx" ON "sales"("client_id");
+
+-- CreateIndex
 CREATE INDEX "sale_items_sale_id_idx" ON "sale_items"("sale_id");
 
 -- CreateIndex
 CREATE INDEX "sale_items_product_id_idx" ON "sale_items"("product_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "clients_nombre_companyId_key" ON "clients"("nombre", "companyId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "suppliers_nombre_companyId_key" ON "suppliers"("nombre", "companyId");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -169,7 +179,7 @@ ALTER TABLE "users" ADD CONSTRAINT "users_company_id_fkey" FOREIGN KEY ("company
 ALTER TABLE "productos" ADD CONSTRAINT "productos_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "productos" ADD CONSTRAINT "productos_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "productos" ADD CONSTRAINT "productos_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "productos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -187,13 +197,16 @@ ALTER TABLE "sales" ADD CONSTRAINT "sales_company_id_fkey" FOREIGN KEY ("company
 ALTER TABLE "sales" ADD CONSTRAINT "sales_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "sales" ADD CONSTRAINT "sales_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "sale_items" ADD CONSTRAINT "sale_items_sale_id_fkey" FOREIGN KEY ("sale_id") REFERENCES "sales"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sale_items" ADD CONSTRAINT "sale_items_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "productos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Client" ADD CONSTRAINT "Client_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "clients" ADD CONSTRAINT "clients_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Supplier" ADD CONSTRAINT "Supplier_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "suppliers" ADD CONSTRAINT "suppliers_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;

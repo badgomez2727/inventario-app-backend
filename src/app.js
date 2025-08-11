@@ -14,6 +14,7 @@ const productRoutes = require('./routes/productRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const clientesRouter = require('./routes/clientes');
 const proveedoresRouter = require('./routes/proveedores');
+const receiptRoutes = require('./routes/receiptRoutes');
 
 const prisma = new PrismaClient();
 const app = express(); // La instancia 'app' debe ser declarada antes de usarse
@@ -54,6 +55,7 @@ app.use('/api/sales', saleRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/clientes', clientesRouter);
 app.use('/api/proveedores', proveedoresRouter);
+app.use('/api/receipts', receiptRoutes);
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3001; // Render usa PORT=10000, así que process.env.PORT es el importante

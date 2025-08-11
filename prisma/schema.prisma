@@ -11,19 +11,19 @@ datasource db {
 
 // Modelo para las Compañías
 model Company {
-  id                  Int             @id @default(autoincrement())
-  nombre              String          @unique @db.VarChar(255)
-  direccion           String?         @db.VarChar(255)
-  telefono            String?         @db.VarChar(50)
-  emailContacto       String          @unique @db.VarChar(255)
-  activo              Boolean         @default(true)
-  fechaCreacion       DateTime        @map("fecha_creacion") @default(now()) @db.Timestamp(0)
-  fechaActualizacion  DateTime        @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
+  id                  Int           @id @default(autoincrement())
+  nombre              String        @unique @db.VarChar(255)
+  direccion           String?       @db.VarChar(255)
+  telefono            String?       @db.VarChar(50)
+  emailContacto       String        @unique @db.VarChar(255)
+  activo              Boolean       @default(true)
+  fechaCreacion       DateTime      @map("fecha_creacion") @default(now()) @db.Timestamp(0)
+  fechaActualizacion  DateTime      @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
 
-  users               User[]          // Relación: Una compañía tiene muchos usuarios
-  products            Product[]       // Relación: Una compañía tiene muchos productos
+  users               User[]
+  products            Product[]
   clients             Client[]
-  suppliers           Supplier[]      // <-- Relación agregada: Una compañía tiene muchos proveedores
+  suppliers           Supplier[]
   stockMovements      StockMovement[]
   sales               Sale[]
 
@@ -67,18 +67,18 @@ model Product {
   activo              Boolean         @default(true)
   fechaCreacion       DateTime        @map("fecha_creacion") @default(now()) @db.Timestamp(0)
   fechaActualizacion  DateTime        @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
-  supplierId          Int?            @map("supplier_id") // <-- Nuevo campo para el proveedor
-  
+  supplierId          Int?            @map("supplier_id")
+
   stockMovements      StockMovement[]
   saleItems           SaleItem[]
-  
+
   company             Company         @relation(fields: [companyId], references: [id])
-  supplier            Supplier?       @relation(fields: [supplierId], references: [id]) // <-- Nueva relación
+  supplier            Supplier?       @relation(fields: [supplierId], references: [id])
 
   @@map("productos")
   @@index([companyId])
   @@unique([companyId, sku])
-  @@index([supplierId]) // <-- Nuevo índice para el proveedor
+  @@index([supplierId])
 }
 
 model StockMovement {
@@ -105,17 +105,20 @@ model Sale {
   id                  Int             @id @default(autoincrement())
   companyId           Int             @map("company_id")
   userId              Int             @map("user_id")
+  clientId            Int?            @map("client_id") // <-- Campo añadido
   fechaVenta          DateTime        @map("fecha_venta") @default(now()) @db.Timestamp(0)
   total               Decimal         @db.Decimal(10, 2)
   estado              String          @db.VarChar(50)
 
   company             Company         @relation(fields: [companyId], references: [id])
   user                User            @relation(fields: [userId], references: [id])
+  client              Client?         @relation(fields: [clientId], references: [id]) // <-- Relación añadida
   saleItems           SaleItem[]
 
   @@map("sales")
   @@index([companyId])
   @@index([userId])
+  @@index([clientId]) // <-- Índice añadido para clientId
 }
 
 model SaleItem {
@@ -142,8 +145,12 @@ model Client {
   direccion           String?
   companyId           Int
   company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sales               Sale[]          // Relación inversa para ver las ventas de un cliente
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
+
+  @@map("clients") // Asegúrate de que esta tabla se mapee correctamente
+  @@unique([nombre, companyId]) // Un cliente con el mismo nombre y compañía debe ser único
 }
 
 model Supplier {
@@ -154,7 +161,10 @@ model Supplier {
   direccion           String?
   companyId           Int
   company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  products            Product[]       // <-- Nueva relación recíproca
+  products            Product[]
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
+
+  @@map("suppliers") // Asegúrate de que esta tabla se mapee correctamente
+  @@unique([nombre, companyId]) // Un proveedor con el mismo nombre y compañía debe ser único
 }

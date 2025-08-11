@@ -3,141 +3,117 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Función para crear una nueva venta
 const createSale = async (req, res) => {
-  const { items } = req.body;
-  const companyId = req.companyId;
-  const userId = req.userId;
+  const { items, clientId, total } = req.body; // 'total' debería venir del frontend
+  const userId = req.userId; // Obtenido del token JWT
+  const companyId = req.companyId; // Obtenido del token JWT
 
   if (!items || items.length === 0) {
-    return res.status(400).json({ error: 'La venta debe contener al menos un artículo.' });
+    return res.status(400).json({ error: 'La venta debe contener al menos un producto.' });
   }
 
-  // Usamos una transacción para garantizar la atomicidad de la venta
   try {
-    const result = await prisma.$transaction(async (prisma) => {
-      let totalVenta = 0;
-
-      // 1. Verificar el stock de todos los productos y calcular el total de la venta
-      const productIds = items.map(item => item.productId);
-      const productsInDb = await prisma.product.findMany({
-        where: {
-          id: { in: productIds },
-          companyId,
-        },
-      });
-
-      const productMap = new Map(productsInDb.map(p => [p.id, p]));
-
-      for (const item of items) {
-        const product = productMap.get(item.productId);
-
-        if (!product) {
-          throw new Error(`El producto con ID ${item.productId} no existe.`);
-        }
-        if (product.stockActual < item.cantidad) {
-          throw new Error(`Stock insuficiente para el producto '${product.nombre}'. Stock actual: ${product.stockActual}, cantidad solicitada: ${item.cantidad}.`);
-        }
-        totalVenta += product.precioVenta * item.cantidad;
-      }
-
-      // 2. Crear la Venta
-      const newSale = await prisma.sale.create({
+    const newSale = await prisma.$transaction(async (tx) => {
+      // 1. Crear la venta principal
+      const sale = await tx.sale.create({
         data: {
-          companyId,
-          userId,
-          total: totalVenta,
-          estado: 'COMPLETADA',
+          fechaVenta: new Date(),
+          total: parseFloat(total), // Asegurarse de que el total sea un número flotante
+          userId: userId,
+          companyId: companyId,
+          clientId: clientId ? parseInt(clientId) : null, // <-- ¡AHORA SÍ DESCOMENTADO! Cliente opcional
+          estado: 'Completada', // O el estado inicial que desees
         },
       });
 
-      // 3. Crear los SaleItems y los StockMovements
+      // 2. Crear los ítems de venta y actualizar el stock de los productos
       for (const item of items) {
-        const product = productMap.get(item.productId);
-        const subtotal = product.precioVenta * item.cantidad;
+        const product = await tx.product.findUnique({
+          where: { id: parseInt(item.productId) },
+        });
 
-        // 3a. Crear el registro del artículo vendido
-        await prisma.saleItem.create({
+        if (!product || product.stockActual < item.cantidad) {
+          throw new Error(`Stock insuficiente para el producto: ${product ? product.nombre : 'desconocido'}.`);
+        }
+
+        await tx.saleItem.create({
           data: {
-            saleId: newSale.id,
-            productId: item.productId,
+            saleId: sale.id,
+            productId: parseInt(item.productId),
             cantidad: item.cantidad,
             precioUnitario: product.precioVenta,
-            subtotal: subtotal,
+            subtotal: item.cantidad * product.precioVenta, 
           },
         });
 
-        // 3b. Crear el registro de movimiento de stock (SALIDA)
-        await prisma.stockMovement.create({
+        await tx.product.update({
+          where: { id: parseInt(item.productId) },
           data: {
-            productId: item.productId,
-            companyId,
-            userId,
-            tipo: 'SALIDA',
+            stockActual: product.stockActual - item.cantidad,
+          },
+        });
+
+        // Registrar el movimiento de stock como "salida"
+        await tx.stockMovement.create({
+          data: {
+            productId: parseInt(item.productId),
             cantidad: item.cantidad,
-            motivo: `Venta #${newSale.id}`,
-          },
-        });
-
-        // 3c. Actualizar el stock actual del producto
-        await prisma.product.update({
-          where: { id: item.productId, companyId },
-          data: {
-            stockActual: {
-              decrement: item.cantidad,
-            },
+            tipo: 'salida',
+            motivo: `Venta #${sale.id}`,
+            userId: userId,
+            companyId: companyId,
+            fechaMovimiento: new Date(),
           },
         });
       }
-
-      return newSale;
+      return sale; // Retorna la venta completa con sus ítems si es necesario
     });
 
-    res.status(201).json({
-      message: 'Venta registrada con éxito.',
-      sale: result,
-    });
+    res.status(201).json({ message: 'Venta registrada con éxito', sale: newSale });
   } catch (error) {
-    console.error('Error al crear la venta:', error);
-    res.status(500).json({ error: error.message || 'Error interno del servidor al procesar la venta.' });
+    console.error('Error al registrar la venta:', error);
+    res.status(500).json({ error: error.message || 'Error interno al registrar la venta.' });
   }
 };
 
-const getSales = async (req, res) => {
-  const companyId = req.companyId;
+// Función para obtener el historial de ventas
+const getSalesHistory = async (req, res) => {
+  const companyId = req.companyId; // Obtenido del token JWT
 
   try {
     const sales = await prisma.sale.findMany({
-      where: { companyId },
+      where: {
+        companyId: companyId,
+      },
       include: {
-        user: {
-          select: {
-            nombreUsuario: true,
-          },
+        user: { // Incluye la información del usuario que realizó la venta
+          select: { nombreUsuario: true }, // Solo necesitamos el nombre de usuario
+        },
+        client: { // <-- ¡AHORA SÍ DESCOMENTADO! Incluye la información del cliente
+          select: { nombre: true }, 
         },
         saleItems: {
           include: {
             product: {
-              select: {
-                nombre: true,
-                sku: true,
-              },
+              select: { nombre: true }, // Solo necesitamos el nombre del producto
             },
           },
         },
       },
       orderBy: {
-        fechaVenta: 'desc',
+        fechaVenta: 'desc', // Ordenar por fecha de venta, las más recientes primero
       },
     });
-
     res.json(sales);
   } catch (error) {
-    console.error('Error al obtener la lista de ventas:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error('Error al obtener el historial de ventas:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener historial de ventas.' });
   }
 };
 
+
 module.exports = {
   createSale,
-  getSales
+  getSalesHistory,
 };
