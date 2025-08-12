@@ -25,9 +25,13 @@ const createProduct = async (req, res) => {
   const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId } = req.body;
   const companyId = req.companyId;
 
-  // Validación básica
-  if (!nombre || !sku || precioCompra == null || precioVenta == null || stockActual == null || !unidadMedida || !categoria) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios para crear el producto.' });
+  // Validación y conversión de tipos
+  const parsedPrecioCompra = parseFloat(precioCompra);
+  const parsedPrecioVenta = parseFloat(precioVenta);
+  const parsedStockActual = parseInt(stockActual, 10);
+
+  if (!nombre || !sku || isNaN(parsedPrecioCompra) || isNaN(parsedPrecioVenta) || isNaN(parsedStockActual) || !unidadMedida || !categoria) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios o tienen formato inválido (nombre, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria).' });
   }
 
   try {
@@ -37,9 +41,9 @@ const createProduct = async (req, res) => {
         nombre,
         descripcion,
         sku,
-        precioCompra: parseFloat(precioCompra),
-        precioVenta: parseFloat(precioVenta),
-        stockActual: parseInt(stockActual, 10),
+        precioCompra: parsedPrecioCompra,
+        precioVenta: parsedPrecioVenta,
+        stockActual: parsedStockActual,
         unidadMedida,
         categoria,
         imagenUrl,
@@ -62,6 +66,17 @@ const updateProduct = async (req, res) => {
   const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId } = req.body;
   const companyId = req.companyId;
 
+  // --- VALIDACIÓN Y CONVERSIÓN DE TIPOS PARA LA ACTUALIZACIÓN ---
+  // Es crucial parsear y validar que son números válidos antes de pasarlos a Prisma
+  const parsedPrecioCompra = parseFloat(precioCompra);
+  const parsedPrecioVenta = parseFloat(precioVenta);
+  const parsedStockActual = parseInt(stockActual, 10);
+
+  // Validaciones: Aseguramos que los campos obligatorios y numéricos estén presentes y sean válidos
+  if (!nombre || !sku || isNaN(parsedPrecioCompra) || isNaN(parsedPrecioVenta) || isNaN(parsedStockActual) || !unidadMedida || !categoria) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios o tienen formato inválido (nombre, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria).' });
+  }
+
   try {
     const updatedProduct = await prisma.product.update({
       where: { id: parseInt(id), companyId: companyId }, // Aseguramos que solo pueda actualizar sus productos
@@ -69,9 +84,9 @@ const updateProduct = async (req, res) => {
         nombre,
         descripcion,
         sku,
-        precioCompra: parseFloat(precioCompra),
-        precioVenta: parseFloat(precioVenta),
-        stockActual: parseInt(stockActual, 10),
+        precioCompra: parsedPrecioCompra, // Usar el valor parseado y validado
+        precioVenta: parsedPrecioVenta,   // Usar el valor parseado y validado
+        stockActual: parsedStockActual,   // Usar el valor parseado y validado
         unidadMedida,
         categoria,
         imagenUrl,
@@ -84,7 +99,7 @@ const updateProduct = async (req, res) => {
     if (error.code === 'P2025') { // Código de error de Prisma para registro no encontrado
       return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
     }
-    if (error.code === 'P2002') {
+    if (error.code === 'P2002') { // Código de error de Prisma para violación de unicidad
       return res.status(409).json({ error: 'Ya existe un producto con el mismo SKU en esta compañía.' });
     }
     res.status(500).json({ error: 'Error interno del servidor al actualizar el producto.' });
@@ -221,7 +236,7 @@ const uploadProductsFromCsv = async (req, res) => {
 module.exports = {
   getProducts,
   createProduct,
-  updateProduct,
-  deleteProduct, // <-- Asegúrate de que esté listado aquí para ser exportado
+  updateProduct, // <-- Función corregida
+  deleteProduct, 
   uploadProductsFromCsv,
 };
