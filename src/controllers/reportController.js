@@ -23,29 +23,26 @@ const getGeneralStats = async (req, res) => {
   }
 };
 
+// Función corregida para obtener el valor del inventario a costo
 const getInventoryValue = async (req, res) => {
   const companyId = req.companyId;
   try {
-    const inventoryValueResult = await prisma.product.aggregate({
-      where: { companyId },
-      _sum: {
-        stockActual: true,
-        precioCompra: true,
-      },
-    });
+    // Consulta SQL RAW para sumar (stockActual * precioCompra) para cada producto
+    const result = await prisma.$queryRaw`
+      SELECT SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_compra") AS "totalInventoryCost"
+      FROM productos AS p
+      WHERE p."company_id" = ${companyId};
+    `;
 
-    // Asegúrate de que los valores no sean nulos antes de multiplicar
-    const totalStock = inventoryValueResult._sum.stockActual || 0;
-    const totalPrecioCompra = inventoryValueResult._sum.precioCompra ? parseFloat(inventoryValueResult._sum.precioCompra.toString()) : 0; // Convertir Decimal a float
-
-    const valorTotalCosto = (totalStock * totalPrecioCompra).toFixed(2);
+    // Prisma $queryRaw devuelve un array de objetos. El resultado está en el primer objeto.
+    const totalInventoryCost = result[0]?.totalInventoryCost || 0;
 
     res.json({
-      valorTotalCosto: parseFloat(valorTotalCosto),
+      valorTotalCosto: parseFloat(totalInventoryCost), // Asegurarse de que sea un número flotante
     });
   } catch (error) {
     console.error('Error al obtener el valor del inventario:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    res.status(500).json({ error: 'Error interno del servidor al calcular el valor del inventario.' });
   }
 };
 
@@ -74,8 +71,62 @@ const getMonthlySales = async (req, res) => {
   }
 };
 
+// Función para obtener los productos más vendidos (sin cambios aquí)
+const getTopSellingProducts = async (req, res) => {
+  const companyId = req.companyId;
+  try {
+    const topProducts = await prisma.saleItem.groupBy({
+      by: ['productId'],
+      where: {
+        sale: {
+          companyId: companyId,
+        },
+      },
+      _sum: {
+        cantidad: true,
+      },
+      orderBy: {
+        _sum: {
+          cantidad: 'desc',
+        },
+      },
+      take: 5, // Top 5 productos
+    });
+
+    const productIds = topProducts.map(item => item.productId);
+    const productsInfo = await prisma.product.findMany({
+      where: {
+        id: {
+          in: productIds,
+        },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        sku: true,
+      },
+    });
+
+    const topSellingProductsWithNames = topProducts.map(item => {
+      const product = productsInfo.find(p => p.id === item.productId);
+      return {
+        productId: item.productId,
+        productName: product ? product.nombre : 'Producto Desconocido',
+        productSku: product ? product.sku : 'N/A',
+        totalQuantitySold: item._sum.cantidad || 0,
+      };
+    });
+
+    res.json(topSellingProductsWithNames);
+  } catch (error) {
+    console.error('Error al obtener los productos más vendidos:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   getGeneralStats,
-  getInventoryValue,
+  getInventoryValue, // <-- Función corregida
   getMonthlySales,
+  getTopSellingProducts,
 };
