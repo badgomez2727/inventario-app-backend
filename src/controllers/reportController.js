@@ -28,15 +28,17 @@ const getInventoryValue = async (req, res) => {
   const companyId = req.companyId;
   try {
     const result = await prisma.$queryRaw`
-      SELECT SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_compra") AS "totalInventoryCost"
+      SELECT SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_compra") AS "totalInventoryCost", SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_venta") AS "totalInventoryValue"
       FROM productos AS p
       WHERE p."company_id" = ${companyId};
     `;
 
     const totalInventoryCost = result[0]?.totalInventoryCost || 0;
+    const totalInventoryValue = result[0]?.totalInventoryValue || 0; // Si se necesita en el futuro
 
     res.json({
       valorTotalCosto: parseFloat(totalInventoryCost),
+      valorTotalVenta: parseFloat(totalInventoryValue),
     });
   } catch (error) {
     console.error('Error al obtener el valor del inventario:', error);
