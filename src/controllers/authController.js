@@ -161,8 +161,12 @@ const solicitarRecuperacion = async (req, res) => {
       data: { token, userId: user.id, expiresAt }
     });
 
-    const enlace = `http://localhost:3000/reset-password?token=${token}`;
+    
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const enlace = `${frontendUrl}/reset-password?token=${token}`;
     await enviarCorreoRecuperacion(user.email, user.nombreUsuario, enlace);
+
+
 
     res.status(200).json({ message: 'Correo de recuperación enviado con éxito.' });
 
