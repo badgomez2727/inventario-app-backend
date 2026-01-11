@@ -45,6 +45,7 @@
       company             Company         @relation(fields: [companyId], references: [id])
       stockMovements      StockMovement[]
       sales               Sale[]
+      passwordResetTokens PasswordResetToken[]
 
       @@map("users")
       @@unique([email, companyId])
@@ -169,3 +170,16 @@
       @@unique([nombre, companyId]) // Un proveedor con el mismo nombre y compañía debe ser único
     }
     
+
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+
+  @@map("password_reset_tokens")
+  @@index([userId])
+}
