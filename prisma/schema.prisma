@@ -102,14 +102,16 @@
       @@index([userId])
     }
 
+
     model Sale {
       id                  Int             @id @default(autoincrement())
       companyId           Int             @map("company_id")
       userId              Int             @map("user_id")
-      clientId            Int?            @map("client_id") // <-- Campo añadido
+      clientId            Int?            @map("client_id") 
       fechaVenta          DateTime        @map("fecha_venta") @default(now()) @db.Timestamp(0)
       total               Decimal         @db.Decimal(10, 2)
       estado              String          @db.VarChar(50)
+      estadoPago          String          @default("PAGADA") 
 
       company             Company         @relation(fields: [companyId], references: [id])
       user                User            @relation(fields: [userId], references: [id])
@@ -119,7 +121,7 @@
       @@map("sales")
       @@index([companyId])
       @@index([userId])
-      @@index([clientId]) // <-- Índice añadido para clientId
+      @@index([clientId]) 
     }
 
     model SaleItem {
@@ -183,3 +185,4 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
   @@index([userId])
 }
+

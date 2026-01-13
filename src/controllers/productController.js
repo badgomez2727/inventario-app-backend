@@ -5,18 +5,41 @@ const prisma = new PrismaClient();
 
 // Función para obtener todos los productos de la compañía del usuario
 const getProducts = async (req, res) => {
-  const companyId = req.companyId;
   try {
-    const products = await prisma.product.findMany({
-      where: { companyId },
-      include: {
-        supplier: true, // Incluir el proveedor
-      },
+    // CAMBIO CLAVE: Quitamos el ".user" porque tu middleware lo guarda directo en req
+    const companyId = parseInt(req.companyId); 
+    
+    if (!companyId) {
+      console.error("DEBUG: req.companyId llegó vacío:", req.companyId);
+      return res.status(400).json({ error: "No se identificó la compañía" });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where: { companyId: companyId },
+        skip: skip,
+        take: limit,
+        orderBy: { nombre: 'asc' }
+      }),
+      prisma.product.count({ 
+        where: { companyId: companyId } 
+      })
+    ]);
+
+    res.json({
+      products,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      totalCount
     });
-    res.json(products);
+
   } catch (error) {
-    console.error('Error al obtener productos:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("Error en getProducts:", error.message);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 

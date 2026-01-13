@@ -5,9 +5,10 @@ const prisma = new PrismaClient();
 
 // Función para crear una nueva venta
 const createSale = async (req, res) => {
-  const { items, clientId, total } = req.body; // 'total' debería venir del frontend
-  const userId = req.userId; // Obtenido del token JWT
-  const companyId = req.companyId; // Obtenido del token JWT
+  // 1. Recibimos también estadoPago del body
+  const { items, clientId, total, estadoPago } = req.body; 
+  const userId = req.userId; 
+  const companyId = req.companyId; 
 
   if (!items || items.length === 0) {
     return res.status(400).json({ error: 'La venta debe contener al menos un producto.' });
@@ -15,19 +16,20 @@ const createSale = async (req, res) => {
 
   try {
     const newSale = await prisma.$transaction(async (tx) => {
-      // 1. Crear la venta principal
+      // 2. Crear la venta principal incluyendo el estado de pago
       const sale = await tx.sale.create({
         data: {
           fechaVenta: new Date(),
-          total: parseFloat(total), // Asegurarse de que el total sea un número flotante
+          total: parseFloat(total), 
           userId: userId,
           companyId: companyId,
-          clientId: clientId ? parseInt(clientId) : null, // <-- ¡AHORA SÍ DESCOMENTADO! Cliente opcional
-          estado: 'Completada', // O el estado inicial que desees
+          clientId: clientId ? parseInt(clientId) : null, 
+          estado: 'Completada', 
+          estadoPago: estadoPago || 'PAGADA', // <-- Campo nuevo guardado
         },
       });
 
-      // 2. Crear los ítems de venta y actualizar el stock de los productos
+      // 3. Crear los ítems de venta y actualizar el stock
       for (const item of items) {
         const product = await tx.product.findUnique({
           where: { id: parseInt(item.productId) },
@@ -54,7 +56,7 @@ const createSale = async (req, res) => {
           },
         });
 
-        // Registrar el movimiento de stock como "salida"
+        // 4. Registrar el movimiento de stock (Fundamental para auditoría)
         await tx.stockMovement.create({
           data: {
             productId: parseInt(item.productId),
@@ -67,7 +69,7 @@ const createSale = async (req, res) => {
           },
         });
       }
-      return sale; // Retorna la venta completa con sus ítems si es necesario
+      return sale; 
     });
 
     res.status(201).json({ message: 'Venta registrada con éxito', sale: newSale });
@@ -117,3 +119,5 @@ module.exports = {
   createSale,
   getSalesHistory,
 };
+
+
