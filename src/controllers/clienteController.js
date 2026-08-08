@@ -7,12 +7,29 @@ const prisma = new PrismaClient();
 const listClients = async (req, res) => {
   const companyId = parseInt(req.companyId); // Asegúrate de que sea un entero
 
+  // Paginación: evita traer todos los clientes de una sola vez cuando la
+  // lista crece con el uso real del negocio.
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
   try {
-    const clients = await prisma.client.findMany({
-      where: { companyId },
-      orderBy: { nombre: 'asc' },
+    const [clients, totalCount] = await Promise.all([
+      prisma.client.findMany({
+        where: { companyId },
+        orderBy: { nombre: 'asc' },
+        skip: skip,
+        take: limit,
+      }),
+      prisma.client.count({ where: { companyId } }),
+    ]);
+
+    res.json({
+      clients,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      totalCount,
     });
-    res.json(clients);
   } catch (error) {
     console.error('Error al obtener la lista de clientes:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });

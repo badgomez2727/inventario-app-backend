@@ -17,6 +17,9 @@
       telefono            String?       @db.VarChar(50)
       emailContacto       String        @unique @db.VarChar(255)
       activo              Boolean       @default(true)
+      // Plan de la compañía: define los límites de uso (ver backend/src/config/plans.js).
+      // "FREE" = plan gratis con techo de uso; "PRO" = sin límites (donó/pagó).
+      plan                String        @default("FREE") @db.VarChar(20)
       fechaCreacion       DateTime      @map("fecha_creacion") @default(now()) @db.Timestamp(0)
       fechaActualizacion  DateTime      @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
 

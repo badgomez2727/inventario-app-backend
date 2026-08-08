@@ -15,16 +15,23 @@ const reportRoutes = require('./routes/reportRoutes');
 const clientesRouter = require('./routes/clientes');
 const proveedoresRouter = require('./routes/proveedores');
 const receiptRoutes = require('./routes/receiptRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const prisma = new PrismaClient();
 const app = express(); // La instancia 'app' debe ser declarada antes de usarse
+
+// Render/Vercel exponen la app detrás de un proxy inverso. Sin esto, Express
+// no confía en el header X-Forwarded-For y el rate limiting vería la IP del
+// proxy para todos los usuarios (o directamente lanzaría error de validación).
+// "1" = confiar en un solo salto de proxy, que es el caso típico en Render.
+app.set('trust proxy', 1);
 
 // --- Configuración de CORS ---
 // Usaremos SOLO ESTA llamada a cors.
 // Asegúrate de que la URL de tu frontend de Vercel sea EXACTA aquí.
 app.use(cors({
   origin: ['http://localhost:3000', 'https://inventario-app-frontend-ashy.vercel.app'], // ¡Ajusta esta URL a la URL REAL de tu frontend en Vercel!
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -56,6 +63,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/clientes', clientesRouter);
 app.use('/api/proveedores', proveedoresRouter);
 app.use('/api/receipts', receiptRoutes);
+app.use('/api/admin', adminRoutes); // Solo accesible con rol super_admin_sistema
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3001; // Render usa PORT=10000, así que process.env.PORT es el importante

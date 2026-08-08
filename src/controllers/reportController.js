@@ -1,7 +1,40 @@
 // venta_inventario_app/backend/src/controllers/reportController.js
 
 const { PrismaClient } = require('@prisma/client');
+const { getPlanLimits } = require('../config/plans');
 const prisma = new PrismaClient();
+
+// Uso actual de la compañía vs los límites de su plan (para mostrar un
+// aviso tipo "llevas 45/50 productos" en el frontend). Cualquier usuario
+// de la compañía puede verlo, no solo el admin — es informativo, no sensible.
+const getPlanStatus = async (req, res) => {
+  const companyId = req.companyId;
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { plan: true },
+    });
+    const limits = getPlanLimits(company?.plan);
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [productCount, salesThisMonth] = await Promise.all([
+      prisma.product.count({ where: { companyId } }),
+      prisma.sale.count({ where: { companyId, fechaVenta: { gte: startOfMonth } } }),
+    ]);
+
+    res.json({
+      plan: company?.plan || 'FREE',
+      label: limits.label,
+      products: { used: productCount, limit: limits.maxProducts },
+      salesThisMonth: { used: salesThisMonth, limit: limits.maxSalesPerMonth },
+    });
+  } catch (error) {
+    console.error('Error al obtener el estado del plan:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
 
 const getGeneralStats = async (req, res) => {
   const companyId = req.companyId;
@@ -157,4 +190,5 @@ module.exports = {
   getInventoryValue,
   getMonthlySales,
   getTopSellingProducts,
+  getPlanStatus,
 };

@@ -1,6 +1,7 @@
 // venta_inventario_app/backend/src/controllers/productController.js
 
 const { PrismaClient } = require('@prisma/client');
+const { getPlanLimits } = require('../config/plans');
 const prisma = new PrismaClient();
 
 // Función para obtener todos los productos de la compañía del usuario
@@ -159,8 +160,23 @@ const uploadProductsFromCsv = async (req, res) => {
     errors: []
   };
 
+  // Respetar el límite del plan también en la carga masiva: sin esto, una
+  // sola carga de CSV podría saltarse por completo el techo de productos.
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { plan: true } });
+  const limits = getPlanLimits(company?.plan);
+  let remainingSlots = limits.maxProducts === Infinity
+    ? Infinity
+    : limits.maxProducts - await prisma.product.count({ where: { companyId } });
+
   // Recorremos cada producto recibido del CSV
   for (const product of productsData) {
+    if (remainingSlots <= 0) {
+      results.errors.push({
+        rowData: product,
+        error: `No se procesó: alcanzaste el límite de ${limits.maxProducts} productos del plan ${limits.label}.`,
+      });
+      continue;
+    }
     try {
       // 1. Validación de campos obligatorios
       if (!product.nombre || !product.sku || product.precioCompra == null || product.precioVenta == null || product.stockActual == null || !product.unidadMedida || !product.categoria) {
@@ -223,6 +239,7 @@ const uploadProductsFromCsv = async (req, res) => {
         }
       });
       results.success.push(createdProduct); // Añadir a la lista de éxitos
+      remainingSlots--;
 
     } catch (err) {
       console.error('Error al procesar fila de producto en carga masiva:', product, err);

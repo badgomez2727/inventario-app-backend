@@ -3,11 +3,12 @@
 const express = require('express');
 const { createSale, getSalesHistory } = require('../controllers/saleController'); // Asegúrate de que getSalesHistory esté importada
 const { authMiddleware } = require('../middlewares/authMiddleware');
+const { enforceSaleLimit } = require('../middlewares/planLimits');
 
 const router = express.Router();
 
 // Ruta para crear una nueva venta (protegida)
-router.post('/', authMiddleware, createSale);
+router.post('/', authMiddleware, enforceSaleLimit, createSale);
 
 // Ruta para obtener el historial de ventas (protegida)
 // Esta es la ruta que tu frontend está intentando acceder: /api/sales/history

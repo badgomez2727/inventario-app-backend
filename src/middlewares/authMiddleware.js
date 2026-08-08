@@ -41,7 +41,20 @@ const authorizeAdmin = (req, res, next) => {
 };
 
 
+// Middleware exclusivo para el super admin del sistema (tú, el dueño de Vendita).
+// A diferencia de authorizeAdmin, NO acepta admin_compania: este rol da acceso
+// a datos de TODAS las compañías, así que un admin de una sola empresa no
+// puede entrar aquí aunque sea "admin" dentro de su propia compañía.
+const authorizeSuperAdmin = (req, res, next) => {
+  if (req.rol === 'super_admin_sistema') {
+    next();
+  } else {
+    res.status(403).json({ error: 'Acceso denegado: se requiere rol de super administrador del sistema.' });
+  }
+};
+
 module.exports = {
   authMiddleware,
   authorizeAdmin, // Exportamos también el middleware de autorización si se requiere
+  authorizeSuperAdmin,
 };

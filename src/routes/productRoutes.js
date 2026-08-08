@@ -9,12 +9,13 @@ const {
   uploadProductsFromCsv 
 } = require('../controllers/productController'); // <-- De aquí se importan las funciones
 const { authMiddleware, authorizeAdmin } = require('../middlewares/authMiddleware');
+const { enforceProductLimit } = require('../middlewares/planLimits');
 
 const router = express.Router();
 
 // Rutas existentes para productos (ej. CRUD)
-router.get('/', authMiddleware, getProducts); 
-router.post('/', authMiddleware, createProduct); 
+router.get('/', authMiddleware, getProducts);
+router.post('/', authMiddleware, enforceProductLimit, createProduct);
 router.put('/:id', authMiddleware, updateProduct); 
 router.delete('/:id', authMiddleware, deleteProduct); // <-- Esta es la línea 19 que estaba dando el error
 
