@@ -36,8 +36,13 @@ app.use(cors({
 }));
 
 // Middlewares generales (siempre van después de la declaración de 'app' y cors)
-app.use(express.json()); // Para parsear cuerpos de solicitud JSON
-app.use(express.urlencoded({ extended: true })); // Para parsear cuerpos de solicitud URL-encoded
+// Límite subido de los 100kb por defecto de Express: la carga masiva de
+// productos manda el CSV completo como JSON en el body, y con unos pocos
+// cientos de filas (con descripción/proveedor incluidos) ya supera 100kb.
+// 10mb sigue siendo un techo acotado (no abre la puerta a payloads
+// arbitrarios), pero deja margen holgado para catálogos grandes.
+app.use(express.json({ limit: '10mb' })); // Para parsear cuerpos de solicitud JSON
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Para parsear cuerpos de solicitud URL-encoded
 
 // Importa el middleware de autenticación (si es necesario para rutas específicas)
 const { authMiddleware } = require('./middlewares/authMiddleware'); 
