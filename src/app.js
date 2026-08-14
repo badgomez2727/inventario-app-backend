@@ -30,7 +30,11 @@ app.set('trust proxy', 1);
 // Usaremos SOLO ESTA llamada a cors.
 // Asegúrate de que la URL de tu frontend de Vercel sea EXACTA aquí.
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://inventario-app-frontend-ashy.vercel.app'], // ¡Ajusta esta URL a la URL REAL de tu frontend en Vercel!
+  origin: [
+    'http://localhost:3000',
+    'https://inventario-app-frontend-ashy.vercel.app', // dominio viejo, lo dejamos mientras Vercel migra
+    'https://venditapp.vercel.app', // dominio nuevo elegido para la marca
+  ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
