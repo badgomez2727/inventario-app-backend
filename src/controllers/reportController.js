@@ -1,7 +1,7 @@
 // venta_inventario_app/backend/src/controllers/reportController.js
 
 const { PrismaClient } = require('@prisma/client');
-const { getPlanLimits } = require('../config/plans');
+const { getPlanLimits, getEffectivePlanName } = require('../config/plans');
 const prisma = new PrismaClient();
 
 // Uso actual de la compañía vs los límites de su plan (para mostrar un
@@ -12,9 +12,10 @@ const getPlanStatus = async (req, res) => {
   try {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { plan: true },
+      select: { plan: true, planExpiresAt: true },
     });
-    const limits = getPlanLimits(company?.plan);
+    const effectivePlan = getEffectivePlanName(company);
+    const limits = getPlanLimits(effectivePlan);
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -25,7 +26,8 @@ const getPlanStatus = async (req, res) => {
     ]);
 
     res.json({
-      plan: company?.plan || 'FREE',
+      plan: effectivePlan,
+      planExpiresAt: company?.planExpiresAt || null,
       label: limits.label,
       products: { used: productCount, limit: limits.maxProducts },
       salesThisMonth: { used: salesThisMonth, limit: limits.maxSalesPerMonth },

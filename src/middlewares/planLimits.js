@@ -2,19 +2,22 @@
 //
 // Middlewares que frenan la creación de recursos cuando la compañía alcanzó
 // el techo de su plan. Consultan el plan actual desde la BD (no desde el
-// JWT) para que un cambio de plan surta efecto sin necesidad de reloguear.
+// JWT) para que un cambio de plan surta efecto sin necesidad de reloguear,
+// y usan getEffectivePlanName() para que un plan pago vencido (planExpiresAt
+// en el pasado) se trate como FREE aunque el campo `plan` todavía diga otra
+// cosa.
 
 const { PrismaClient } = require('@prisma/client');
-const { getPlanLimits } = require('../config/plans');
+const { getPlanLimits, getEffectivePlanName } = require('../config/plans');
 const prisma = new PrismaClient();
 
 const enforceProductLimit = async (req, res, next) => {
   try {
     const company = await prisma.company.findUnique({
       where: { id: req.companyId },
-      select: { plan: true },
+      select: { plan: true, planExpiresAt: true },
     });
-    const limits = getPlanLimits(company?.plan);
+    const limits = getPlanLimits(getEffectivePlanName(company));
 
     if (limits.maxProducts === Infinity) return next();
 
@@ -32,13 +35,17 @@ const enforceProductLimit = async (req, res, next) => {
   }
 };
 
+// Ventas/mes ya no se limita (ver config/plans.js: maxSalesPerMonth siempre
+// es Infinity). Se deja este middleware montado en la ruta por si algún día
+// se quiere usar esa señal para algo que NO sea bloquear una venta en curso
+// (ej. un aviso informativo), pero hoy nunca bloquea.
 const enforceSaleLimit = async (req, res, next) => {
   try {
     const company = await prisma.company.findUnique({
       where: { id: req.companyId },
-      select: { plan: true },
+      select: { plan: true, planExpiresAt: true },
     });
-    const limits = getPlanLimits(company?.plan);
+    const limits = getPlanLimits(getEffectivePlanName(company));
 
     if (limits.maxSalesPerMonth === Infinity) return next();
 

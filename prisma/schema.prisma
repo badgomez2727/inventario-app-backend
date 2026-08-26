@@ -18,8 +18,12 @@
       emailContacto       String        @unique @db.VarChar(255)
       activo              Boolean       @default(true)
       // Plan de la compañía: define los límites de uso (ver backend/src/config/plans.js).
-      // "FREE" = plan gratis con techo de uso; "PRO" = sin límites (donó/pagó).
+      // "FREE" = plan gratis con techo de uso; "BASICO"/"PRO" = planes pagos.
       plan                String        @default("FREE") @db.VarChar(20)
+      // Fecha en que vence el plan pago actual (null = no vence, ej. FREE).
+      // Si ya pasó, el sistema trata a la compañía como FREE aunque `plan`
+      // todavía diga "BASICO"/"PRO" — ver getEffectivePlanName() en plans.js.
+      planExpiresAt       DateTime?     @map("plan_expires_at") @db.Timestamp(0)
       fechaCreacion       DateTime      @map("fecha_creacion") @default(now()) @db.Timestamp(0)
       fechaActualizacion  DateTime      @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
 
@@ -29,6 +33,7 @@
       suppliers           Supplier[]
       stockMovements      StockMovement[]
       sales               Sale[]
+      productChangeLogs   ProductChangeLog[]
 
       @@map("companies")
     }
@@ -49,6 +54,7 @@
       stockMovements      StockMovement[]
       sales               Sale[]
       passwordResetTokens PasswordResetToken[]
+      productChangeLogs   ProductChangeLog[]
 
       @@map("users")
       @@unique([email, companyId])
@@ -75,6 +81,7 @@
 
       stockMovements      StockMovement[]
       saleItems           SaleItem[]
+      changeLogs          ProductChangeLog[]
 
       company             Company         @relation(fields: [companyId], references: [id])
       supplier            Supplier?       @relation(fields: [supplierId], references: [id])
@@ -83,6 +90,29 @@
       @@index([companyId])
       @@unique([companyId, sku])
       @@index([supplierId])
+    }
+
+    // Historial de cambios de un producto (precios, stock manual, etc.).
+    // Cada vez que updateProduct cambia un campo "sensible" queda un registro
+    // aquí con el valor anterior y el nuevo, quién lo hizo y cuándo.
+    model ProductChangeLog {
+      id                  Int             @id @default(autoincrement())
+      productId           Int             @map("product_id")
+      companyId           Int             @map("company_id")
+      userId              Int             @map("user_id")
+      campo               String          @db.VarChar(50)
+      valorAnterior       String?         @map("valor_anterior") @db.Text
+      valorNuevo          String?         @map("valor_nuevo") @db.Text
+      fecha               DateTime        @default(now()) @db.Timestamp(0)
+
+      product             Product         @relation(fields: [productId], references: [id])
+      company             Company         @relation(fields: [companyId], references: [id])
+      user                User            @relation(fields: [userId], references: [id])
+
+      @@map("product_change_log")
+      @@index([productId])
+      @@index([companyId])
+      @@index([userId])
     }
 
     model StockMovement {

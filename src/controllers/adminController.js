@@ -6,7 +6,7 @@
 // (ver middlewares/authMiddleware.js -> authorizeSuperAdmin).
 
 const { PrismaClient } = require('@prisma/client');
-const { getPlanLimits, PLAN_LIMITS } = require('../config/plans');
+const { getPlanLimits, getEffectivePlanName, PLAN_LIMITS } = require('../config/plans');
 const prisma = new PrismaClient();
 
 // Lista todas las compañías del sistema (de cualquier empresa, a propósito:
@@ -27,6 +27,7 @@ const listCompanies = async (req, res) => {
           nombre: true,
           emailContacto: true,
           plan: true,
+          planExpiresAt: true,
           activo: true,
           fechaCreacion: true,
           _count: { select: { products: true, users: true, sales: true } },
@@ -43,18 +44,25 @@ const listCompanies = async (req, res) => {
         const salesThisMonth = await prisma.sale.count({
           where: { companyId: c.id, fechaVenta: { gte: startOfMonth } },
         });
+        const effectivePlan = getEffectivePlanName(c);
         return {
           id: c.id,
           nombre: c.nombre,
           emailContacto: c.emailContacto,
           plan: c.plan,
+          planExpiresAt: c.planExpiresAt,
+          // Si el plan pago venció, esto ya muestra "FREE" aunque `plan`
+          // en la BD todavía diga "BASICO"/"PRO" (no se actualiza el campo
+          // en la BD hasta que un admin lo cambie a mano; esto es solo lo
+          // que realmente aplica ahora mismo).
+          effectivePlan,
           activo: c.activo,
           fechaCreacion: c.fechaCreacion,
           productCount: c._count.products,
           userCount: c._count.users,
           salesTotalCount: c._count.sales,
           salesThisMonth,
-          limits: getPlanLimits(c.plan),
+          limits: getPlanLimits(effectivePlan),
         };
       })
     );
@@ -71,20 +79,29 @@ const listCompanies = async (req, res) => {
   }
 };
 
-// Cambia el plan de una compañía (p. ej. de FREE a PRO tras una donación/pago).
+// Cambia el plan de una compañía (p. ej. de FREE a BASICO/PRO tras un pago).
+// La fecha de vencimiento se calcula sola a partir de `durationDays` del plan
+// (ver config/plans.js) salvo que se mande `durationDays` explícito en el
+// body, útil para una renovación con un periodo distinto al estándar.
 const updateCompanyPlan = async (req, res) => {
   const { id } = req.params;
-  const { plan } = req.body;
+  const { plan, durationDays } = req.body;
 
   const validPlans = Object.keys(PLAN_LIMITS);
   if (!validPlans.includes(plan)) {
     return res.status(400).json({ error: `Plan inválido. Debe ser uno de: ${validPlans.join(', ')}` });
   }
 
+  const planConfig = getPlanLimits(plan);
+  const effectiveDurationDays = durationDays !== undefined ? durationDays : planConfig.durationDays;
+  const planExpiresAt = effectiveDurationDays
+    ? new Date(Date.now() + effectiveDurationDays * 24 * 60 * 60 * 1000)
+    : null; // FREE (o un plan sin duración) nunca vence
+
   try {
     const updated = await prisma.company.update({
       where: { id: parseInt(id) },
-      data: { plan },
+      data: { plan, planExpiresAt },
     });
     res.json(updated);
   } catch (error) {

@@ -1,7 +1,7 @@
 // venta_inventario_app/backend/src/controllers/productController.js
 
 const { PrismaClient } = require('@prisma/client');
-const { getPlanLimits } = require('../config/plans');
+const { getPlanLimits, getEffectivePlanName } = require('../config/plans');
 const prisma = new PrismaClient();
 
 // Función para obtener todos los productos de la compañía del usuario
@@ -101,22 +101,68 @@ const updateProduct = async (req, res) => {
     return res.status(400).json({ error: 'Faltan campos obligatorios o tienen formato inválido (nombre, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria).' });
   }
 
+  const userId = req.userId;
+  const productId = parseInt(id, 10);
+  const newSupplierId = supplierId ? parseInt(supplierId, 10) : null;
+
   try {
-    const updatedProduct = await prisma.product.update({
-      where: { id: parseInt(id), companyId: companyId }, // Aseguramos que solo pueda actualizar sus productos
-      data: {
-        nombre,
-        descripcion,
-        sku,
-        precioCompra: parsedPrecioCompra, // Usar el valor parseado y validado
-        precioVenta: parsedPrecioVenta,   // Usar el valor parseado y validado
-        stockActual: parsedStockActual,   // Usar el valor parseado y validado
-        unidadMedida,
-        categoria,
-        imagenUrl,
-        supplierId: supplierId ? parseInt(supplierId, 10) : null,
-      },
+    // 1. Traer el producto tal como está ANTES de tocarlo, para poder comparar
+    //    campo por campo y saber qué cambió realmente.
+    const existingProduct = await prisma.product.findFirst({
+      where: { id: productId, companyId: companyId },
     });
+
+    if (!existingProduct) {
+      return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
+    }
+
+    // 2. Comparar valores viejos vs nuevos y armar los registros de historial
+    //    solo para los campos "sensibles" que realmente cambiaron.
+    const camposSensibles = [
+      { campo: 'nombre', anterior: existingProduct.nombre, nuevo: nombre },
+      { campo: 'sku', anterior: existingProduct.sku, nuevo: sku },
+      { campo: 'precioCompra', anterior: existingProduct.precioCompra.toString(), nuevo: parsedPrecioCompra.toString() },
+      { campo: 'precioVenta', anterior: existingProduct.precioVenta.toString(), nuevo: parsedPrecioVenta.toString() },
+      { campo: 'stockActual', anterior: existingProduct.stockActual.toString(), nuevo: parsedStockActual.toString() },
+      { campo: 'categoria', anterior: existingProduct.categoria, nuevo: categoria },
+      { campo: 'unidadMedida', anterior: existingProduct.unidadMedida, nuevo: unidadMedida },
+      { campo: 'supplierId', anterior: existingProduct.supplierId?.toString() ?? null, nuevo: newSupplierId?.toString() ?? null },
+    ];
+
+    const cambios = camposSensibles.filter(c => c.anterior !== c.nuevo);
+
+    // 3. Actualizar el producto y, si hubo cambios, registrar el historial,
+    //    todo dentro de una transacción para que sea atómico.
+    const [updatedProduct] = await prisma.$transaction([
+      prisma.product.update({
+        where: { id: productId, companyId: companyId },
+        data: {
+          nombre,
+          descripcion,
+          sku,
+          precioCompra: parsedPrecioCompra,
+          precioVenta: parsedPrecioVenta,
+          stockActual: parsedStockActual,
+          unidadMedida,
+          categoria,
+          imagenUrl,
+          supplierId: newSupplierId,
+        },
+      }),
+      ...(cambios.length > 0
+        ? [prisma.productChangeLog.createMany({
+            data: cambios.map(c => ({
+              productId,
+              companyId,
+              userId,
+              campo: c.campo,
+              valorAnterior: c.anterior,
+              valorNuevo: c.nuevo,
+            })),
+          })]
+        : []),
+    ]);
+
     res.json(updatedProduct);
   } catch (error) {
     console.error('Error al actualizar producto:', error);
@@ -162,8 +208,8 @@ const uploadProductsFromCsv = async (req, res) => {
 
   // Respetar el límite del plan también en la carga masiva: sin esto, una
   // sola carga de CSV podría saltarse por completo el techo de productos.
-  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { plan: true } });
-  const limits = getPlanLimits(company?.plan);
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { plan: true, planExpiresAt: true } });
+  const limits = getPlanLimits(getEffectivePlanName(company));
   let remainingSlots = limits.maxProducts === Infinity
     ? Infinity
     : limits.maxProducts - await prisma.product.count({ where: { companyId } });
@@ -273,10 +319,41 @@ const uploadProductsFromCsv = async (req, res) => {
 };
 
 
+// Función para consultar el historial de cambios de un producto
+// (precios, stock manual, etc.), más reciente primero.
+const getProductChangeLog = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.companyId;
+  const productId = parseInt(id, 10);
+
+  try {
+    // Verificamos que el producto exista y sea de la compañía antes de mostrar su historial
+    const product = await prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
+    }
+
+    const historial = await prisma.productChangeLog.findMany({
+      where: { productId, companyId },
+      orderBy: { fecha: 'desc' },
+      include: { user: { select: { id: true, nombreUsuario: true } } },
+    });
+
+    res.json(historial);
+  } catch (error) {
+    console.error('Error al obtener historial de producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener el historial.' });
+  }
+};
+
 module.exports = {
   getProducts,
   createProduct,
   updateProduct, // <-- Función corregida
-  deleteProduct, 
+  deleteProduct,
   uploadProductsFromCsv,
+  getProductChangeLog,
 };

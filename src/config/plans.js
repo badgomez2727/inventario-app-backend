@@ -2,17 +2,34 @@
 //
 // Límites de uso por plan. Todo centralizado aquí para poder ajustar los
 // números sin tocar los controladores/middlewares que los aplican.
-
+//
+// El freno de plan es SOLO por número de productos en el catálogo. Ventas/mes
+// no se limita: el volumen de ventas de una tienda varía mucho por temporada
+// y puede ser altísimo incluso en negocios pequeños, así que no es una buena
+// señal de "hay que pagar más" — solo terminaría bloqueando una venta real
+// frente a un cliente, que es el peor momento posible para un muro de pago.
+// El catálogo (SKUs) sí refleja el tamaño real del negocio y crece despacio.
 const PLAN_LIMITS = {
   FREE: {
     label: 'Gratis',
     maxProducts: 50,
-    maxSalesPerMonth: 100,
+    maxSalesPerMonth: Infinity,
+    priceCOP: 0,
+    durationDays: null, // no vence
+  },
+  BASICO: {
+    label: 'Básico',
+    maxProducts: 150,
+    maxSalesPerMonth: Infinity,
+    priceCOP: 10000,
+    durationDays: 180, // 6 meses
   },
   PRO: {
     label: 'Pro',
-    maxProducts: Infinity,
+    maxProducts: 500,
     maxSalesPerMonth: Infinity,
+    priceCOP: 20000,
+    durationDays: 180, // 6 meses
   },
 };
 
@@ -20,4 +37,21 @@ const PLAN_LIMITS = {
 // (mejor limitar de más que dejar un plan desconocido sin límites).
 const getPlanLimits = (plan) => PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
 
-module.exports = { PLAN_LIMITS, getPlanLimits };
+// Devuelve el NOMBRE de plan que realmente aplica ahora mismo. Si el plan es
+// de pago (BASICO/PRO) y `planExpiresAt` ya pasó, la compañía se trata como
+// FREE aunque el campo `plan` en la BD todavía diga lo contrario — así un
+// pago que no se renueva no deja acceso ilimitado para siempre. FREE nunca
+// vence (planExpiresAt es null para ese plan).
+//
+// Recibe la compañía completa (o al menos { plan, planExpiresAt }) para no
+// acoplar esta función a cómo se consulta la BD en cada lugar que la usa.
+const getEffectivePlanName = (company) => {
+  if (!company || !company.plan) return 'FREE';
+  const { plan, planExpiresAt } = company;
+  if (plan !== 'FREE' && planExpiresAt && new Date(planExpiresAt) < new Date()) {
+    return 'FREE';
+  }
+  return plan;
+};
+
+module.exports = { PLAN_LIMITS, getPlanLimits, getEffectivePlanName };
