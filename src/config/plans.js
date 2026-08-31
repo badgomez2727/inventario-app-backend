@@ -21,14 +21,20 @@ const PLAN_LIMITS = {
     label: 'Básico',
     maxProducts: 150,
     maxSalesPerMonth: Infinity,
-    priceCOP: 10000,
+    priceCOP: 30000,
+    // priceLifetimeCOP: pago único, sin vencimiento (planExpiresAt queda null).
+    // No hay una llave de plan separada para esto: al activarlo, el admin
+    // manda { plan: 'BASICO', durationDays: null } en updateCompanyPlan
+    // (ver adminController.js), que ya soporta ese override explícito.
+    priceLifetimeCOP: 250000,
     durationDays: 180, // 6 meses
   },
   PRO: {
     label: 'Pro',
     maxProducts: 500,
     maxSalesPerMonth: Infinity,
-    priceCOP: 20000,
+    priceCOP: 60000,
+    priceLifetimeCOP: 500000, // mismo mecanismo que BASICO.priceLifetimeCOP
     durationDays: 180, // 6 meses
   },
 };
