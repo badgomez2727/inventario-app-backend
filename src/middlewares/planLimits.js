@@ -67,4 +67,29 @@ const enforceSaleLimit = async (req, res, next) => {
   }
 };
 
-module.exports = { enforceProductLimit, enforceSaleLimit };
+// Middleware genérico para funciones exclusivas de ciertos planes (ej. el
+// borrador de pedidos por WhatsApp, exclusivo de PRO). A diferencia de los
+// dos de arriba, no cuenta nada: solo verifica que el plan efectivo esté en
+// la lista permitida antes de dejar pasar la petición.
+const requirePlan = (allowedPlans) => async (req, res, next) => {
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: req.companyId },
+      select: { plan: true, planExpiresAt: true },
+    });
+    const effectivePlan = getEffectivePlanName(company);
+
+    if (!allowedPlans.includes(effectivePlan)) {
+      return res.status(403).json({
+        code: 'PLAN_LIMIT_REACHED',
+        error: 'Esta función es exclusiva del plan Pro. Actualiza tu plan para usarla.',
+      });
+    }
+    next();
+  } catch (error) {
+    console.error('Error al validar plan requerido:', error);
+    res.status(500).json({ error: 'Error interno al validar el plan.' });
+  }
+};
+
+module.exports = { enforceProductLimit, enforceSaleLimit, requirePlan };

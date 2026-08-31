@@ -16,6 +16,7 @@ const clientesRouter = require('./routes/clientes');
 const proveedoresRouter = require('./routes/proveedores');
 const receiptRoutes = require('./routes/receiptRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const aiOrderRoutes = require('./routes/aiOrderRoutes');
 
 const prisma = new PrismaClient();
 const app = express(); // La instancia 'app' debe ser declarada antes de usarse
@@ -73,6 +74,7 @@ app.use('/api/clientes', clientesRouter);
 app.use('/api/proveedores', proveedoresRouter);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/admin', adminRoutes); // Solo accesible con rol super_admin_sistema
+app.use('/api/pedidos-ia', aiOrderRoutes); // Borrador de pedidos por WhatsApp con IA (solo plan PRO)
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3001; // Render usa PORT=10000, así que process.env.PORT es el importante

@@ -35,8 +35,22 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes de recuperación. Intenta de nuevo en unos minutos.' },
 });
 
+// Límite para /api/pedidos-ia/parse: cada llamada cuesta dinero real en la
+// API de Claude. Esto es un techo de seguridad ante un bug o abuso (loop
+// infinito, alguien pegando el mismo texto una y otra vez), no una
+// restricción normal de uso: 30 pedidos/hora por IP alcanza sobrado para el
+// uso real de una tienda.
+const aiOrderLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Alcanzaste el límite de pedidos generados con IA por esta hora. Intenta de nuevo más tarde.' },
+});
+
 module.exports = {
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
+  aiOrderLimiter,
 };
