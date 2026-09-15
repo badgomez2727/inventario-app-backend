@@ -35,6 +35,7 @@ app.use(cors({
     'http://localhost:3000',
     'https://inventario-app-frontend-ashy.vercel.app', // dominio viejo, lo dejamos mientras Vercel migra
     'https://venditapp.vercel.app', // dominio nuevo elegido para la marca
+    'https://vendita.tyndallcore.com', // dominio propio bajo la marca Tyndall
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
