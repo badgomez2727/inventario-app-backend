@@ -36,11 +36,11 @@ const ALLOWED_ORIGINS = [
 ];
 
 // Los deploys de Preview de Vercel (ramas/PRs, incluida "develop" para
-// staging) generan una URL distinta cada vez
-// (inventario-app-frontend-<hash>-badgomez2727s-projects.vercel.app), así
-// que además de la whitelist fija aceptamos cualquier preview de ESTE
-// proyecto puntual en esa cuenta de Vercel.
-const VERCEL_PREVIEW_ORIGIN = /^https:\/\/inventario-app-frontend-[a-z0-9-]+-badgomez2727s-projects\.vercel\.app$/;
+// staging) generan una URL distinta en cada push
+// (vendita-<hash>-badgomez2727s-projects.vercel.app — "vendita" es el
+// nombre del proyecto en Vercel, no el del repo), así que además de la
+// whitelist fija aceptamos cualquier preview de ESE proyecto puntual.
+const VERCEL_PREVIEW_ORIGIN = /^https:\/\/vendita-[a-z0-9-]+-badgomez2727s-projects\.vercel\.app$/;
 
 app.use(cors({
   origin: (origin, callback) => {
