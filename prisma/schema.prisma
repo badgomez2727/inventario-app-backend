@@ -17,6 +17,11 @@
       telefono            String?       @db.VarChar(50)
       emailContacto       String        @unique @db.VarChar(255)
       activo              Boolean       @default(true)
+      // Marca la compañía interna de Tyndall (super_admin_sistema real +
+      // cuenta demo) — nunca una compañía de cliente. La usan los scripts de
+      // limpieza para saber qué NUNCA hay que borrar, sin depender de
+      // mantener su id a mano. Ver scripts/crear-compania-interna.js.
+      esInterna           Boolean       @default(false) @map("es_interna")
       // Plan de la compañía: define los límites de uso (ver backend/src/config/plans.js).
       // "FREE" = plan gratis con techo de uso; "BASICO"/"PRO" = planes pagos.
       plan                String        @default("FREE") @db.VarChar(20)
