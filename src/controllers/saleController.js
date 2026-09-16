@@ -134,6 +134,10 @@ const getSalesHistory = async (req, res) => {
               },
             },
           },
+          payments: {
+            where: { anulado: false }, // Solo los pagos activos cuentan para el saldo pendiente
+            select: { monto: true },
+          },
         },
         orderBy: {
           fechaVenta: 'desc', // Ordenar por fecha de venta, las más recientes primero

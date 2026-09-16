@@ -39,6 +39,7 @@
       stockMovements      StockMovement[]
       sales               Sale[]
       productChangeLogs   ProductChangeLog[]
+      payments            Payment[]
 
       @@map("companies")
     }
@@ -60,6 +61,7 @@
       sales               Sale[]
       passwordResetTokens PasswordResetToken[]
       productChangeLogs   ProductChangeLog[]
+      payments            Payment[]
 
       @@map("users")
       @@unique([email, companyId])
@@ -155,6 +157,7 @@
       user                User            @relation(fields: [userId], references: [id])
       client              Client?         @relation(fields: [clientId], references: [id]) // <-- Relación añadida
       saleItems           SaleItem[]
+      payments            Payment[]
 
       @@map("sales")
       @@index([companyId])
@@ -221,6 +224,33 @@ model PasswordResetToken {
   expiresAt DateTime @map("expires_at")
 
   @@map("password_reset_tokens")
+  @@index([userId])
+}
+
+// Abonos/pagos de una venta. Una venta puede tener varios pagos parciales;
+// el estadoPago de la venta (PENDIENTE/PARCIAL/PAGADA) se recalcula a partir
+// de la suma de los pagos NO anulados cada vez que se registra o anula uno.
+// Un pago nunca se borra: anularlo solo marca `anulado = true` con su motivo,
+// para conservar el rastro de auditoría.
+model Payment {
+  id                Int      @id @default(autoincrement())
+  saleId            Int      @map("sale_id")
+  companyId         Int      @map("company_id")
+  monto             Decimal  @db.Decimal(10, 2)
+  fecha             DateTime @default(now()) @db.Timestamp(0)
+  metodo            String   @db.VarChar(50)
+  userId            Int      @map("user_id")
+  nota              String?  @db.Text
+  anulado           Boolean  @default(false)
+  motivoAnulacion   String?  @map("motivo_anulacion") @db.Text
+
+  sale              Sale     @relation(fields: [saleId], references: [id])
+  company           Company  @relation(fields: [companyId], references: [id])
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@map("payments")
+  @@index([saleId])
+  @@index([companyId])
   @@index([userId])
 }
 

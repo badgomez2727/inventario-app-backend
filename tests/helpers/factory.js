@@ -60,6 +60,20 @@ async function createProduct(companyId, overrides = {}) {
   });
 }
 
+async function createSale(companyId, userId, overrides = {}) {
+  return prisma.sale.create({
+    data: {
+      companyId,
+      userId,
+      fechaVenta: new Date(),
+      total: 10000,
+      estado: 'Completada',
+      estadoPago: 'PENDIENTE',
+      ...overrides,
+    },
+  });
+}
+
 function signToken(user) {
   return jwt.sign(
     { userId: user.id, companyId: user.companyId, rol: user.rol },
@@ -73,5 +87,6 @@ module.exports = {
   createCompany,
   createUser,
   createProduct,
+  createSale,
   signToken,
 };
