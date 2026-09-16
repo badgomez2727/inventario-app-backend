@@ -10,6 +10,10 @@
 - `GET /api/sales/history` ahora incluye también los pagos activos de cada venta (solo `monto`), para poder calcular el saldo pendiente en el listado sin una llamada adicional.
 - Tests de integración para el módulo de pagos (`tests/payments.test.js`): abono parcial, pago completo, sobrepago rechazado, anulación de pago, y pago sobre venta de otra compañía (rechazado).
 
+### Cambiado
+
+- El token JWT ahora expira en 8 horas (antes 1 hora). Con 1h, una sesión de trabajo normal (o una ronda de pruebas) terminaba forzando el login a mitad de una acción.
+
 ### Sin cambios
 
 - Migración (`add_payments`) puramente aditiva: crea la tabla `payments`, no toca ninguna tabla existente.

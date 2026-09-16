@@ -78,7 +78,7 @@ function signToken(user) {
   return jwt.sign(
     { userId: user.id, companyId: user.companyId, rol: user.rol },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: '8h' } // igual al de authController.js — no crítico para los tests, pero evita que diverja
   );
 }
 
