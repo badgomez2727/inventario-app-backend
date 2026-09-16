@@ -91,11 +91,15 @@ app.use('/api/receipts', receiptRoutes);
 app.use('/api/admin', adminRoutes); // Solo accesible con rol super_admin_sistema
 app.use('/api/pedidos-ia', aiOrderRoutes); // Borrador de pedidos por WhatsApp con IA (solo plan PRO)
 
-// Iniciar el servidor
+// Iniciar el servidor — pero no cuando este archivo se importa desde los
+// tests (Supertest hace su propio listen() en un puerto efímero; si
+// arrancáramos aquí también, chocarían dos servidores en el mismo puerto).
 const PORT = process.env.PORT || 3001; // Render usa PORT=10000, así que process.env.PORT es el importante
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en el puerto ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor escuchando en el puerto ${PORT}`);
+  });
+}
 
 // Desconectar Prisma cuando la aplicación se cierra
 process.on('beforeExit', async () => {

@@ -2,6 +2,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { ASSIGNABLE_ROLES } = require('../config/roles');
 const prisma = new PrismaClient();
 
 // Función para listar todos los usuarios de la compañía actual
@@ -32,6 +33,14 @@ const createUser = async (req, res) => {
 
   if (!nombreUsuario || !email || !password || !rol) {
     return res.status(400).json({ error: 'Faltan campos obligatorios: nombreUsuario, email, password, rol.' });
+  }
+
+  // CRÍTICO: el rol viene del cliente — sin esta validación, cualquiera podía
+  // pedir 'super_admin_sistema' y obtener acceso a TODAS las compañías.
+  if (!ASSIGNABLE_ROLES.includes(rol)) {
+    return res.status(400).json({
+      error: `Rol inválido. Debe ser uno de: ${ASSIGNABLE_ROLES.join(', ')}.`,
+    });
   }
 
   try {

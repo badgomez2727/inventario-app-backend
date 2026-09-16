@@ -54,7 +54,20 @@ const createSale = async (req, res) => {
         if (!product) {
           throw new Error(`Producto no encontrado o no pertenece a tu compañía (ID: ${item.productId}).`);
         }
-        if (product.stockActual < item.cantidad) {
+
+        // CRÍTICO: el descuento de stock debe ser una operación atómica que
+        // valide la cantidad disponible en el MISMO statement — leer
+        // stockActual y decidir aparte (como se hacía antes) deja una
+        // ventana donde dos ventas concurrentes del último ítem disponible
+        // pueden pasar ambas la validación y dejar el stock en negativo.
+        // updateMany con `stockActual: { gte: cantidad }` en el where hace
+        // que Postgres solo aplique el UPDATE si la condición sigue siendo
+        // cierta en ese instante (con el lock de fila propio del UPDATE).
+        const stockUpdate = await tx.product.updateMany({
+          where: { id: productId, companyId, stockActual: { gte: item.cantidad } },
+          data: { stockActual: { decrement: item.cantidad } },
+        });
+        if (stockUpdate.count === 0) {
           throw new Error(`Stock insuficiente para el producto: ${product.nombre}.`);
         }
 
@@ -65,15 +78,6 @@ const createSale = async (req, res) => {
             cantidad: item.cantidad,
             precioUnitario: product.precioVenta,
             subtotal: item.cantidad * product.precioVenta,
-          },
-        });
-
-        // Decremento atómico (evita condición de carrera entre ventas concurrentes
-        // del mismo producto, en vez de restar sobre un valor leído antes).
-        await tx.product.update({
-          where: { id: productId },
-          data: {
-            stockActual: { decrement: item.cantidad },
           },
         });
 

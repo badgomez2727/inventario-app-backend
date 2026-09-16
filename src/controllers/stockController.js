@@ -14,9 +14,18 @@ const addStockEntry = async (req, res) => {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // 1. Crear el movimiento de stock
-      const newMovement = await tx.stockMovement.create({
+    const newMovement = await prisma.$transaction(async (tx) => {
+      // CRÍTICO: sin este chequeo, se podía incrementar el stock de un
+      // producto de OTRA compañía pasando su id — el movimiento quedaba
+      // registrado con el companyId del atacante, pero afectaba stock ajeno.
+      const product = await tx.product.findFirst({
+        where: { id: parseInt(productId), companyId },
+      });
+      if (!product) {
+        throw new Error('PRODUCTO_NO_ENCONTRADO');
+      }
+
+      const movement = await tx.stockMovement.create({
         data: {
           productId: parseInt(productId),
           cantidad: parseInt(cantidad),
@@ -28,18 +37,22 @@ const addStockEntry = async (req, res) => {
         },
       });
 
-      // 2. Actualizar el stock actual del producto
       await tx.product.update({
         where: { id: parseInt(productId) },
-        data: {
-          stockActual: {
-            increment: parseInt(cantidad),
-          },
-        },
+        data: { stockActual: { increment: parseInt(cantidad) } },
       });
-      res.status(201).json(newMovement);
+
+      return movement;
     });
+
+    // La respuesta se envía DESPUÉS de que la transacción resuelve, nunca
+    // desde dentro del callback (si Prisma alguna vez reintenta la
+    // transacción, res.json() dentro del callback podría llamarse dos veces).
+    res.status(201).json(newMovement);
   } catch (error) {
+    if (error.message === 'PRODUCTO_NO_ENCONTRADO') {
+      return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
+    }
     console.error('Error al registrar entrada de stock:', error);
     res.status(500).json({ error: 'Error interno del servidor al registrar la entrada de stock.' });
   }
@@ -56,18 +69,28 @@ const addStockExit = async (req, res) => {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // 1. Verificar stock actual
-      const product = await tx.product.findUnique({
-        where: { id: parseInt(productId), companyId: companyId },
+    const newMovement = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { id: parseInt(productId), companyId },
       });
-
-      if (!product || product.stockActual < cantidad) {
-        return res.status(400).json({ error: 'Stock insuficiente para esta salida.' });
+      if (!product) {
+        throw new Error('PRODUCTO_NO_ENCONTRADO');
       }
 
-      // 2. Crear el movimiento de stock
-      const newMovement = await tx.stockMovement.create({
+      // CRÍTICO: descuento atómico condicionado (stockActual >= cantidad) en
+      // la propia sentencia UPDATE, en vez de "leer y luego decidir" — así
+      // dos salidas/ventas simultáneas del último ítem no pueden dejar el
+      // stock en negativo (la condición se evalúa en el mismo statement que
+      // hace el UPDATE, con el lock de fila que Postgres ya toma para eso).
+      const updateResult = await tx.product.updateMany({
+        where: { id: parseInt(productId), companyId, stockActual: { gte: parseInt(cantidad) } },
+        data: { stockActual: { decrement: parseInt(cantidad) } },
+      });
+      if (updateResult.count === 0) {
+        throw new Error('STOCK_INSUFICIENTE');
+      }
+
+      return tx.stockMovement.create({
         data: {
           productId: parseInt(productId),
           cantidad: parseInt(cantidad),
@@ -78,19 +101,16 @@ const addStockExit = async (req, res) => {
           fechaMovimiento: new Date(),
         },
       });
-
-      // 3. Actualizar el stock actual del producto
-      await tx.product.update({
-        where: { id: parseInt(productId) },
-        data: {
-          stockActual: {
-            decrement: parseInt(cantidad),
-          },
-        },
-      });
-      res.status(201).json(newMovement);
     });
+
+    res.status(201).json(newMovement);
   } catch (error) {
+    if (error.message === 'PRODUCTO_NO_ENCONTRADO') {
+      return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
+    }
+    if (error.message === 'STOCK_INSUFICIENTE') {
+      return res.status(400).json({ error: 'Stock insuficiente para esta salida.' });
+    }
     console.error('Error al registrar salida de stock:', error);
     res.status(500).json({ error: 'Error interno del servidor al registrar la salida de stock.' });
   }

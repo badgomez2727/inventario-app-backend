@@ -45,3 +45,29 @@ Esto resetea la rama `staging` al estado actual de `production` (todo lo que se 
 - No hay seed automático (`prisma db seed`) configurado — nada corre solo contra ninguna base al hacer deploy, más allá de `migrate deploy` (que solo aplica el esquema, no inserta datos).
 - `scripts/set-super-admin.js` es de invocación manual únicamente (`node scripts/set-super-admin.js <usuario>`), nunca se ejecuta automáticamente.
 - CORS acepta la whitelist fija de producción más cualquier URL de preview de Vercel de este proyecto (`vendita-*-badgomez2727s-projects.vercel.app`), para que los previews de `develop` y de pull requests funcionen sin tocar código en cada deploy.
+
+## Tests
+
+Los tests de integración (Jest + Supertest) corren contra una base de datos **local, separada de todo lo demás** — nunca contra staging ni contra producción. Viven en `tests/`.
+
+**Levantar la base de pruebas (una sola vez, o cuando el contenedor se haya caído):**
+
+```bash
+docker start inventario-db   # el mismo contenedor Postgres que usa el desarrollo local
+# si el contenedor no existe todavía, créalo apuntando al Postgres local de siempre
+# y luego, dentro de él, crea la base de pruebas (solo la primera vez):
+docker exec -e PGPASSWORD=postgres inventario-db psql -U postgres -h localhost -c "CREATE DATABASE inventario_test;"
+
+# aplicar el esquema a la base de pruebas (solo hace falta cuando cambian las migraciones):
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/inventario_test?schema=public" npx prisma migrate deploy
+```
+
+**Correr los tests:**
+
+```bash
+npm test
+```
+
+`tests/jest.setupEnv.js` ya apunta `DATABASE_URL` a `inventario_test` (puerto 5433, base separada de `inventario`, la de desarrollo normal) — no hace falta exportar nada a mano. Cada test crea sus propias compañías/usuarios/productos con nombres únicos (ver `tests/helpers/factory.js`), así que no chocan entre sí ni con datos que ya existan.
+
+Si `npm test` falla con `Can't reach database server at localhost:5433`, el contenedor se cayó — corre `docker start inventario-db` y vuelve a intentar.
