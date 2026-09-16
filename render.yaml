@@ -1,0 +1,30 @@
+# Blueprint de referencia para el servicio de STAGING del backend de Vendita.
+#
+# Esto documenta la configuración esperada; no toca el servicio de producción
+# (que se creó a mano, no vía Blueprint). Para provisionar staging con esto:
+# Render Dashboard -> New -> Blueprint -> selecciona este repo -> rama "develop".
+#
+# Las variables con `sync: false` no llevan valor aquí (nunca se commitea un
+# secreto): Render te pide llenarlas a mano la primera vez, o las copias
+# manualmente en Settings -> Environment del servicio ya creado.
+services:
+  - type: web
+    name: inventario-backend-staging
+    runtime: node
+    branch: develop
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false # cadena de conexión de la rama "staging" de Neon (no la de producción)
+      - key: JWT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_ORDER_MOCK
+        value: "true" # evita gastar tokens reales de IA en pruebas de staging por defecto
+      - key: FRONTEND_URL
+        sync: false # URL estable del preview de Vercel para la rama develop (ver README)

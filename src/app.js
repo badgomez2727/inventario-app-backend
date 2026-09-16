@@ -29,14 +29,28 @@ app.set('trust proxy', 1);
 
 // --- Configuración de CORS ---
 // Usaremos SOLO ESTA llamada a cors.
-// Asegúrate de que la URL de tu frontend de Vercel sea EXACTA aquí.
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://inventario-app-frontend-ashy.vercel.app', // dominio viejo, lo dejamos mientras Vercel migra
+  'https://vendita.tyndallcore.com', // dominio propio bajo la marca Tyndall
+];
+
+// Los deploys de Preview de Vercel (ramas/PRs, incluida "develop" para
+// staging) generan una URL distinta cada vez
+// (inventario-app-frontend-<hash>-badgomez2727s-projects.vercel.app), así
+// que además de la whitelist fija aceptamos cualquier preview de ESTE
+// proyecto puntual en esa cuenta de Vercel.
+const VERCEL_PREVIEW_ORIGIN = /^https:\/\/inventario-app-frontend-[a-z0-9-]+-badgomez2727s-projects\.vercel\.app$/;
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://inventario-app-frontend-ashy.vercel.app', // dominio viejo, lo dejamos mientras Vercel migra
-    'https://venditapp.vercel.app', // dominio nuevo elegido para la marca
-    'https://vendita.tyndallcore.com', // dominio propio bajo la marca Tyndall
-  ],
+  origin: (origin, callback) => {
+    // Peticiones sin header Origin (ej. curl, servidor-a-servidor) no aplican CORS.
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin) || VERCEL_PREVIEW_ORIGIN.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
