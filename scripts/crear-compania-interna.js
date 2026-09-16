@@ -26,7 +26,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const NOMBRE_COMPANIA_INTERNA = 'Tyndall Interno';
+const NOMBRE_COMPANIA_INTERNA = 'TyndallCore';
 const EMAIL_CONTACTO_INTERNA = 'interno@tyndallcore.com';
 
 // Fragmento del host de la rama "staging" de Neon (ver README) — sirve solo
