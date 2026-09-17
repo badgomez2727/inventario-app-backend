@@ -59,6 +59,7 @@
       company             Company         @relation(fields: [companyId], references: [id])
       stockMovements      StockMovement[]
       sales               Sale[]
+      salesAnuladas       Sale[]          @relation("SalesAnuladas")
       passwordResetTokens PasswordResetToken[]
       productChangeLogs   ProductChangeLog[]
       payments            Payment[]
@@ -147,22 +148,32 @@
       id                  Int             @id @default(autoincrement())
       companyId           Int             @map("company_id")
       userId              Int             @map("user_id")
-      clientId            Int?            @map("client_id") 
+      clientId            Int?            @map("client_id")
       fechaVenta          DateTime        @map("fecha_venta") @default(now()) @db.Timestamp(0)
       total               Decimal         @db.Decimal(10, 2)
       estado              String          @db.VarChar(50)
-      estadoPago          String          @default("PAGADA") 
+      estadoPago          String          @default("PAGADA")
+      // Anulación (ver saleController.js -> anularVenta): solo admin_compania,
+      // con motivo obligatorio. No se puede anular una venta con pagos activos
+      // ni anular dos veces. Devuelve el stock de cada ítem con un StockMovement
+      // de tipo 'devolucion'. Las ventas ANULADA se excluyen de totales/reportes
+      // pero siguen visibles en el historial con su motivo.
+      fechaAnulacion      DateTime?       @map("fecha_anulacion") @db.Timestamp(0)
+      anuladoPorUserId    Int?            @map("anulado_por_user_id")
+      motivoAnulacion     String?         @map("motivo_anulacion") @db.Text
 
       company             Company         @relation(fields: [companyId], references: [id])
       user                User            @relation(fields: [userId], references: [id])
       client              Client?         @relation(fields: [clientId], references: [id]) // <-- Relación añadida
+      anuladoPor          User?           @relation("SalesAnuladas", fields: [anuladoPorUserId], references: [id])
       saleItems           SaleItem[]
       payments            Payment[]
 
       @@map("sales")
       @@index([companyId])
       @@index([userId])
-      @@index([clientId]) 
+      @@index([clientId])
+      @@index([anuladoPorUserId])
     }
 
     model SaleItem {

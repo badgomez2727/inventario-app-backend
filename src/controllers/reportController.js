@@ -97,13 +97,14 @@ const getMonthlySales = async (req, res) => {
 
   try {
     // Usamos $queryRawUnsafe para construir la consulta dinámicamente con el filtro de fecha
-    // y `$1` para el company_id para prevenir inyección SQL en ese parámetro
+    // y `$1` para el company_id para prevenir inyección SQL en ese parámetro.
+    // Las ventas ANULADA se excluyen: no deben sumar al total del reporte.
     const monthlySales = await prisma.$queryRawUnsafe(`
       SELECT
         TO_CHAR("fecha_venta", 'YYYY-MM') AS month,
         SUM(total) AS total
       FROM sales
-      WHERE ${dateFilter} company_id = $1
+      WHERE ${dateFilter} company_id = $1 AND estado != 'ANULADA'
       GROUP BY month
       ORDER BY month;
     `, companyId);
@@ -142,6 +143,7 @@ const getTopSellingProducts = async (req, res) => {
       where: {
         sale: {
           companyId: companyId,
+          estado: { not: 'ANULADA' }, // Las ventas anuladas no cuentan como "vendido"
           ...dateFilter, // Aplica el filtro de fechas aquí
         },
       },

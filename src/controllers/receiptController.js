@@ -52,6 +52,15 @@ const generateSaleReceiptPdf = async (req, res) => {
     doc.fontSize(16).text('RECIBO DE VENTA', { align: 'center' });
     doc.fontSize(12).text(`No. Venta: ${sale.id}`, { align: 'center' });
     doc.text(`Fecha: ${new Date(sale.fechaVenta).toLocaleDateString('es-CO')}`, { align: 'center' });
+
+    if (sale.estado === 'ANULADA') {
+      doc.moveDown(0.5);
+      doc.fontSize(14).fillColor('red').text('*** VENTA ANULADA ***', { align: 'center' });
+      if (sale.motivoAnulacion) {
+        doc.fontSize(9).text(`Motivo: ${sale.motivoAnulacion}`, { align: 'center' });
+      }
+      doc.fillColor('black');
+    }
     doc.moveDown();
 
     // Información del Cliente (si existe)

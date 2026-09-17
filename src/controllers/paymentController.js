@@ -57,6 +57,12 @@ const registrarPago = async (req, res) => {
         throw err;
       }
 
+      if (sale.estado === 'ANULADA') {
+        const err = new Error('Esta venta está anulada y no puede recibir pagos.');
+        err.status = 400;
+        throw err;
+      }
+
       const totalCents = toCents(sale.total);
       const pagadoCents = sumaPagosActivos(sale.payments);
       const saldoCents = totalCents - pagadoCents;

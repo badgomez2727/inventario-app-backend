@@ -1,7 +1,7 @@
 // venta_inventario_app/backend/src/routes/saleRoutes.js
 
 const express = require('express');
-const { createSale, getSalesHistory } = require('../controllers/saleController'); // Asegúrate de que getSalesHistory esté importada
+const { createSale, getSalesHistory, anularVenta } = require('../controllers/saleController'); // Asegúrate de que getSalesHistory esté importada
 const { registrarPago, listarPagos, anularPago } = require('../controllers/paymentController');
 const { authMiddleware } = require('../middlewares/authMiddleware');
 const { enforceSaleLimit } = require('../middlewares/planLimits');
@@ -19,5 +19,8 @@ router.get('/history', authMiddleware, getSalesHistory);
 router.post('/:id/payments', authMiddleware, registrarPago);
 router.get('/:id/payments', authMiddleware, listarPagos);
 router.patch('/:id/payments/:paymentId/anular', authMiddleware, anularPago);
+
+// Anulación de la venta completa (no de un pago individual): solo admin_compania.
+router.patch('/:id/anular', authMiddleware, anularVenta);
 
 module.exports = router;

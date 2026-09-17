@@ -104,6 +104,94 @@ const createSale = async (req, res) => {
   }
 };
 
+// Anula una venta: solo admin_compania, con motivo obligatorio. No se puede
+// anular una venta con pagos activos (primero hay que anular esos pagos) ni
+// una venta ya anulada. En una sola transacción: la venta pasa a ANULADA
+// (con fecha, usuario y motivo) y cada ítem devuelve su stock con un
+// StockMovement de tipo 'devolucion'.
+const anularVenta = async (req, res) => {
+  const companyId = req.companyId;
+  const userId = req.userId;
+  const saleId = parseInt(req.params.id, 10);
+  const { motivo } = req.body;
+
+  if (req.rol !== 'admin_compania') {
+    return res.status(403).json({ error: 'Solo un administrador de la compañía puede anular una venta.' });
+  }
+
+  if (!Number.isInteger(saleId)) {
+    return res.status(400).json({ error: 'Venta inválida.' });
+  }
+
+  if (!motivo || !motivo.trim()) {
+    return res.status(400).json({ error: 'El motivo de anulación es obligatorio.' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: { id: saleId, companyId },
+        include: { payments: true, saleItems: true },
+      });
+
+      if (!sale) {
+        const err = new Error('Venta no encontrada o no pertenece a tu compañía.');
+        err.status = 404;
+        throw err;
+      }
+
+      if (sale.estado === 'ANULADA') {
+        const err = new Error('Esta venta ya fue anulada.');
+        err.status = 400;
+        throw err;
+      }
+
+      const pagosActivos = sale.payments.filter((p) => !p.anulado);
+      if (pagosActivos.length > 0) {
+        const err = new Error('No puedes anular una venta con pagos activos. Anula primero los pagos registrados y vuelve a intentarlo.');
+        err.status = 400;
+        throw err;
+      }
+
+      for (const item of sale.saleItems) {
+        await tx.product.updateMany({
+          where: { id: item.productId, companyId },
+          data: { stockActual: { increment: item.cantidad } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            cantidad: item.cantidad,
+            tipo: 'devolucion',
+            motivo: `Devolución por anulación de venta #${sale.id}`,
+            userId,
+            companyId,
+            fechaMovimiento: new Date(),
+          },
+        });
+      }
+
+      const updatedSale = await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          estado: 'ANULADA',
+          fechaAnulacion: new Date(),
+          anuladoPorUserId: userId,
+          motivoAnulacion: motivo.trim(),
+        },
+      });
+
+      return updatedSale;
+    });
+
+    res.json({ message: 'Venta anulada con éxito.', sale: result });
+  } catch (error) {
+    console.error('Error al anular la venta:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Error interno al anular la venta.' });
+  }
+};
+
 // Función para obtener el historial de ventas
 const getSalesHistory = async (req, res) => {
   const companyId = req.companyId; // Obtenido del token JWT
@@ -164,6 +252,7 @@ const getSalesHistory = async (req, res) => {
 module.exports = {
   createSale,
   getSalesHistory,
+  anularVenta,
 };
 
 
