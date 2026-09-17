@@ -81,6 +81,23 @@ describe('PATCH /api/sales/:id/anular', () => {
     expect(productoSinCambios.stockActual).toBe(4); // el stock no se devolvió
   });
 
+  test('un super_admin_sistema también puede anular (mismo criterio que authorizeAdmin)', async () => {
+    const company = await createCompany();
+    const superAdmin = await createUser(company.id, 'super_admin_sistema');
+    const product = await createProduct(company.id, { stockActual: 5 });
+    const token = signToken(superAdmin);
+
+    const sale = await crearVentaConItem(app, token, product, 1);
+
+    const res = await request(app)
+      .patch(`/api/sales/${sale.id}/anular`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ motivo: 'Anulación por super admin' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.sale.estado).toBe('ANULADA');
+  });
+
   test('un empleado no puede anular una venta', async () => {
     const company = await createCompany();
     const empleado = await createUser(company.id, 'empleado_inventario');

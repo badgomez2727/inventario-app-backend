@@ -104,19 +104,23 @@ const createSale = async (req, res) => {
   }
 };
 
-// Anula una venta: solo admin_compania, con motivo obligatorio. No se puede
-// anular una venta con pagos activos (primero hay que anular esos pagos) ni
-// una venta ya anulada. En una sola transacción: la venta pasa a ANULADA
-// (con fecha, usuario y motivo) y cada ítem devuelve su stock con un
+// Anula una venta: solo admin_compania o super_admin_sistema (mismo criterio
+// que authorizeAdmin en el resto del sistema), con motivo obligatorio. No se
+// puede anular una venta con pagos activos (primero hay que anular esos
+// pagos) ni una venta ya anulada. En una sola transacción: la venta pasa a
+// ANULADA (con fecha, usuario y motivo) y cada ítem devuelve su stock con un
 // StockMovement de tipo 'devolucion'.
+// El chequeo de rol vive acá (no en la ruta) porque authorizeAdmin es
+// genérico para todo /api; esto documenta explícitamente qué roles pueden
+// anular ventas.
 const anularVenta = async (req, res) => {
   const companyId = req.companyId;
   const userId = req.userId;
   const saleId = parseInt(req.params.id, 10);
   const { motivo } = req.body;
 
-  if (req.rol !== 'admin_compania') {
-    return res.status(403).json({ error: 'Solo un administrador de la compañía puede anular una venta.' });
+  if (req.rol !== 'admin_compania' && req.rol !== 'super_admin_sistema') {
+    return res.status(403).json({ error: 'Solo un administrador puede anular una venta.' });
   }
 
   if (!Number.isInteger(saleId)) {

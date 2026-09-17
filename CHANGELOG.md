@@ -4,7 +4,7 @@
 
 ### Agregado
 
-- Anulación de ventas: `PATCH /api/sales/:id/anular` (solo `admin_compania`, motivo obligatorio). En una transacción, la venta pasa a `estado: 'ANULADA'` (con fecha, usuario y motivo guardados), y cada ítem devuelve su stock con un `StockMovement` de tipo `'devolucion'`. Se rechaza si la venta tiene pagos activos (primero hay que anularlos), si ya está anulada, o si no pertenece a la compañía del usuario. Una venta anulada tampoco puede recibir pagos nuevos.
+- Anulación de ventas: `PATCH /api/sales/:id/anular` (solo `admin_compania` o `super_admin_sistema`, motivo obligatorio). En una transacción, la venta pasa a `estado: 'ANULADA'` (con fecha, usuario y motivo guardados), y cada ítem devuelve su stock con un `StockMovement` de tipo `'devolucion'`. Se rechaza si la venta tiene pagos activos (primero hay que anularlos), si ya está anulada, o si no pertenece a la compañía del usuario. Una venta anulada tampoco puede recibir pagos nuevos.
 - `getMonthlySales` y `getTopSellingProducts` excluyen las ventas `ANULADA` de sus totales. El historial de ventas y el PDF del recibo siguen mostrando la venta anulada (con badge/aviso), pero el total de la página en el historial ya no la suma.
 - Frontend: botón "Anular venta" en el detalle de venta (solo visible para `admin_compania`), con confirmación y campo de motivo obligatorio; banner de "Venta anulada" con el motivo, y bloqueo del formulario de registrar pago sobre una venta anulada.
 - Tests de integración (`tests/sale-void.test.js`): anulación con devolución de stock, rechazo con pagos activos, rechazo a empleado, rechazo sobre venta de otra compañía, doble anulación rechazada, motivo obligatorio, bloqueo de pagos sobre venta anulada, y exclusión de reportes.
