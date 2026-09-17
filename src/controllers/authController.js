@@ -104,7 +104,12 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas o usuario inactivo.' });
     }
 
-    // 3. Generar el Token JWT
+    // 3. La compañía debe estar activa (ver PATCH /api/admin/companies/:id/activo)
+    if (!user.company.activo) {
+      return res.status(403).json({ error: 'Tu compañía está desactivada. Contacta al administrador del sistema.' });
+    }
+
+    // 4. Generar el Token JWT
     const token = jwt.sign(
       { userId: user.id, companyId: user.companyId, rol: user.rol },
       jwtSecret,
@@ -144,35 +149,43 @@ const solicitarRecuperacion = async (req, res) => {
   // Si por alguna razón llega como objeto {email: '...'}, extraemos el string
   const emailString = (typeof email === 'object' ? email.email : email).toLowerCase().trim();
 
+  // Siempre respondemos 200 con el mismo mensaje genérico, exista o no el
+  // correo (y también si el usuario existe pero está inactivo) — de lo
+  // contrario este endpoint se puede usar para enumerar qué correos están
+  // registrados en el sistema probando uno por uno.
+  const respuestaGenerica = {
+    message: 'Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña.',
+  };
+
   try {
-    const user = await prisma.user.findFirst({ 
-      where: { email: emailString } 
+    const user = await prisma.user.findFirst({
+      where: { email: emailString }
     });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'No se encontró un usuario con ese correo.' });
+
+    if (user && user.activo) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 3600000);
+
+      await prisma.passwordResetToken.create({
+        data: { token, userId: user.id, expiresAt }
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const enlace = `${frontendUrl}/reset-password?token=${token}`;
+      try {
+        await enviarCorreoRecuperacion(user.email, user.nombreUsuario, enlace);
+      } catch (emailError) {
+        // Un fallo real de envío (ej. Resend caído) no debe delatar nada al
+        // cliente — queda solo en los logs del servidor.
+        console.error('Error enviando correo de recuperación:', emailError);
+      }
     }
 
-    // ... (el resto del código sigue igual usando emailString)
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 3600000);
-
-    await prisma.passwordResetToken.create({
-      data: { token, userId: user.id, expiresAt }
-    });
-
-    
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const enlace = `${frontendUrl}/reset-password?token=${token}`;
-    await enviarCorreoRecuperacion(user.email, user.nombreUsuario, enlace);
-
-
-
-    res.status(200).json({ message: 'Correo de recuperación enviado con éxito.' });
+    res.status(200).json(respuestaGenerica);
 
   } catch (error) {
-    console.error('Error detallado:', error);
-    res.status(500).json({ error: 'Error interno', message: error.message });
+    console.error('Error en solicitarRecuperacion:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
 
@@ -194,29 +207,6 @@ const restablecerClave = async (req, res) => {
     res.status(200).json({ message: 'Clave actualizada.' });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar.' });
-  }
-};
-
-// Prueba de diagnóstico rápido
-const pruebaResend = async (req, res) => {
-  try {
-    const { Resend } = require('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    
-    console.log("Usando clave:", process.env.RESEND_API_KEY ? "Detectada" : "No detectada");
-    
-    const data = await resend.emails.send({
-      from: 'onboarding@resend.dev',
-      to: 'TU_CORREO_DE_REGISTRO_EN_RESEND@gmail.com', // CAMBIA ESTO POR TU CORREO REAL
-      subject: 'Prueba de Conexión',
-      html: '<p>Si ves esto, la API Key funciona</p>'
-    });
-    
-    console.log("Respuesta técnica de Resend:", data);
-    res.json(data);
-  } catch (err) {
-    console.error("Error técnico:", err);
-    res.status(500).json({ error: err.message });
   }
 };
 

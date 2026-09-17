@@ -4,6 +4,12 @@
 
 ### Agregado
 
+- Desactivar compañías: `PATCH /api/admin/companies/:id/activo` (solo `super_admin_sistema`, nunca aplica a la compañía interna). Una compañía inactiva no puede iniciar sesión (mensaje claro en el login) y `authMiddleware` corta cualquier sesión ya abierta de sus usuarios en la siguiente petición (no espera a que expire el token de 8h). Se puede reactivar.
+- Recuperar contraseña: `POST /auth/forgot-password` ahora responde siempre `200` con un mensaje genérico, exista o no el correo (y también si el usuario existe pero está inactivo) — antes devolvía `404` cuando el correo no existía, lo que permitía enumerar qué correos están registrados.
+- Borrados con historial: `DELETE /api/productos/:id`, `/api/proveedores/:id` y `/api/clientes/:id` ahora capturan `P2003` (violación de llave foránea) y devuelven un mensaje entendible en vez de un 500 genérico. En productos es el caso real (no se puede borrar uno con ventas o movimientos de stock); proveedores y clientes lo capturan por consistencia aunque hoy su relación es `ON DELETE SET NULL` (no falla, deja el registro huérfano — ver nota en `tests/bloque4.test.js`).
+- `getMonthlySales` ya no interpola las fechas directamente en el SQL: `startDate`/`endDate` viajan como parámetros ligados (`$2::timestamp`, `$3::timestamp`), igual que `company_id`.
+- Frontend: botón activar/desactivar en el panel de compañías (`AdminCompaniesPage`), con confirmación.
+- Tests de integración (`tests/bloque4.test.js`): desactivar compañía bloquea login y sesiones abiertas, reactivar restaura el acceso, `admin_compania` no puede desactivar, no se puede desactivar la compañía interna, recuperación de contraseña siempre 200, y borrado de producto con historial rechazado con mensaje claro.
 - Anulación de ventas: `PATCH /api/sales/:id/anular` (solo `admin_compania` o `super_admin_sistema`, motivo obligatorio). En una transacción, la venta pasa a `estado: 'ANULADA'` (con fecha, usuario y motivo guardados), y cada ítem devuelve su stock con un `StockMovement` de tipo `'devolucion'`. Se rechaza si la venta tiene pagos activos (primero hay que anularlos), si ya está anulada, o si no pertenece a la compañía del usuario. Una venta anulada tampoco puede recibir pagos nuevos.
 - `getMonthlySales` y `getTopSellingProducts` excluyen las ventas `ANULADA` de sus totales. El historial de ventas y el PDF del recibo siguen mostrando la venta anulada (con badge/aviso), pero el total de la página en el historial ya no la suma.
 - Frontend: botón "Anular venta" en el detalle de venta (solo visible para `admin_compania`), con confirmación y campo de motivo obligatorio; banner de "Venta anulada" con el motivo, y bloqueo del formulario de registrar pago sobre una venta anulada.
@@ -18,6 +24,11 @@
 ### Cambiado
 
 - El token JWT ahora expira en 8 horas (antes 1 hora). Con 1h, una sesión de trabajo normal (o una ronda de pruebas) terminaba forzando el login a mitad de una acción.
+- `authMiddleware` ahora consulta si la compañía del token sigue activa en cada petición (antes solo leía el JWT). Agrega una consulta a la base de datos por request — necesario para que desactivar una compañía tenga efecto inmediato en vez de esperar hasta 8h a que expire el token.
+
+### Eliminado
+
+- Función muerta `pruebaResend` en `authController.js` (no estaba exportada ni tenía ninguna ruta; era un script de diagnóstico manual que quedó pegado al archivo).
 
 ### Sin cambios
 

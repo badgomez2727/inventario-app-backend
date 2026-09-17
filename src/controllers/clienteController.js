@@ -102,6 +102,9 @@ const deleteClient = async (req, res) => {
     res.status(200).json({ message: 'Cliente eliminado con éxito.' });
   } catch (error) {
     console.error('Error al eliminar el cliente:', error);
+    if (error.code === 'P2003') {
+      return res.status(409).json({ error: 'No puedes eliminar este cliente porque ya tiene ventas registradas.' });
+    }
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };

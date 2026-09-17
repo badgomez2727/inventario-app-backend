@@ -60,6 +60,28 @@ async function createProduct(companyId, overrides = {}) {
   });
 }
 
+async function createClient(companyId, overrides = {}) {
+  const suffix = uniqueSuffix();
+  return prisma.client.create({
+    data: {
+      companyId,
+      nombre: `Cliente Test ${suffix}`,
+      ...overrides,
+    },
+  });
+}
+
+async function createSupplier(companyId, overrides = {}) {
+  const suffix = uniqueSuffix();
+  return prisma.supplier.create({
+    data: {
+      companyId,
+      nombre: `Proveedor Test ${suffix}`,
+      ...overrides,
+    },
+  });
+}
+
 async function createSale(companyId, userId, overrides = {}) {
   return prisma.sale.create({
     data: {
@@ -87,6 +109,8 @@ module.exports = {
   createCompany,
   createUser,
   createProduct,
+  createClient,
+  createSupplier,
   createSale,
   signToken,
 };

@@ -1,6 +1,6 @@
 // backend/src/routes/adminRoutes.js
 const express = require('express');
-const { listCompanies, updateCompanyPlan } = require('../controllers/adminController');
+const { listCompanies, updateCompanyPlan, setCompanyActivo } = require('../controllers/adminController');
 const { authorizeSuperAdmin } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -11,5 +11,6 @@ router.use(authorizeSuperAdmin);
 
 router.get('/companies', listCompanies);
 router.patch('/companies/:id/plan', updateCompanyPlan);
+router.patch('/companies/:id/activo', setCompanyActivo);
 
 module.exports = router;

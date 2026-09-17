@@ -86,28 +86,35 @@ const getMonthlySales = async (req, res) => {
   const companyId = req.companyId;
   const { startDate, endDate } = req.query; // Obtener fechas de los query parameters
 
-  let dateFilter = '';
-  // Si startDate y endDate están presentes, construye la parte del filtro SQL
+  // El texto del WHERE solo varía en qué placeholders usa, nunca en datos
+  // interpolados directamente — company_id, y si vienen, startIso/endIso
+  // siempre viajan como parámetros ligados ($1, $2, $3), nunca como texto
+  // pegado al SQL (antes las fechas sí se interpolaban en el template
+  // literal, aunque `company_id` ya iba parametrizado).
+  let whereClause = 'company_id = $1 AND estado != \'ANULADA\'';
+  const params = [companyId];
+
   if (startDate && endDate) {
-    // Asegurarse de que las fechas sean válidas y estén en formato ISO para la consulta SQL
+    // Asegurarse de que las fechas sean válidas antes de mandarlas como parámetro.
+    // Postgres no infiere el tipo de un parámetro de texto contra una columna
+    // timestamp por sí solo (falla con "operator does not exist: timestamp >= text"),
+    // así que el cast va en el SQL, no en el valor — el valor en sí sigue ligado.
     const startIso = new Date(startDate).toISOString();
     const endIso = new Date(endDate).toISOString();
-    dateFilter = `"fecha_venta" BETWEEN '${startIso}' AND '${endIso}' AND`;
+    whereClause += ' AND "fecha_venta" BETWEEN $2::timestamp AND $3::timestamp';
+    params.push(startIso, endIso);
   }
 
   try {
-    // Usamos $queryRawUnsafe para construir la consulta dinámicamente con el filtro de fecha
-    // y `$1` para el company_id para prevenir inyección SQL en ese parámetro.
-    // Las ventas ANULADA se excluyen: no deben sumar al total del reporte.
     const monthlySales = await prisma.$queryRawUnsafe(`
       SELECT
         TO_CHAR("fecha_venta", 'YYYY-MM') AS month,
         SUM(total) AS total
       FROM sales
-      WHERE ${dateFilter} company_id = $1 AND estado != 'ANULADA'
+      WHERE ${whereClause}
       GROUP BY month
       ORDER BY month;
-    `, companyId);
+    `, ...params);
 
     const formattedSales = monthlySales.map(item => ({
       month: item.month,

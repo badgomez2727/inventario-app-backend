@@ -1,8 +1,11 @@
 // venta_inventario_app/backend/src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
 const { jwtSecret } = require('../config/jwt'); // Importa la clave secreta
 
-const authMiddleware = (req, res, next) => {
+const prisma = new PrismaClient();
+
+const authMiddleware = async (req, res, next) => {
   // Obtener el token del encabezado Authorization
   const authHeader = req.headers.authorization;
 
@@ -15,6 +18,18 @@ const authMiddleware = (req, res, next) => {
   try {
     // Verificar y decodificar el token
     const decoded = jwt.verify(token, jwtSecret);
+
+    // Un token es válido hasta por 8h (ver config/jwt.js) — si un
+    // super_admin_sistema desactiva la compañía a mitad de esa ventana, la
+    // sesión ya abierta debe cortarse en la siguiente petición, no seguir
+    // operando hasta que el token expire solo.
+    const company = await prisma.company.findUnique({
+      where: { id: decoded.companyId },
+      select: { activo: true },
+    });
+    if (!company || !company.activo) {
+      return res.status(403).json({ error: 'Tu compañía está desactivada. Contacta al administrador del sistema.' });
+    }
 
     // Adjuntar userId, companyId y rol al objeto de solicitud (req)
     req.userId = decoded.userId;

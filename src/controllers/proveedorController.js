@@ -102,6 +102,9 @@ const deleteSupplier = async (req, res) => {
     res.status(200).json({ message: 'Proveedor eliminado con éxito.' });
   } catch (error) {
     console.error('Error al eliminar el proveedor:', error);
+    if (error.code === 'P2003') {
+      return res.status(409).json({ error: 'No puedes eliminar este proveedor porque todavía tiene productos u otros registros asociados.' });
+    }
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };

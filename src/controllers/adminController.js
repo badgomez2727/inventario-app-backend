@@ -29,6 +29,7 @@ const listCompanies = async (req, res) => {
           plan: true,
           planExpiresAt: true,
           activo: true,
+          esInterna: true,
           fechaCreacion: true,
           _count: { select: { products: true, users: true, sales: true } },
         },
@@ -57,6 +58,7 @@ const listCompanies = async (req, res) => {
           // que realmente aplica ahora mismo).
           effectivePlan,
           activo: c.activo,
+          esInterna: c.esInterna,
           fechaCreacion: c.fechaCreacion,
           productCount: c._count.products,
           userCount: c._count.users,
@@ -113,7 +115,42 @@ const updateCompanyPlan = async (req, res) => {
   }
 };
 
+// Activa/desactiva una compañía. Nunca aplica a la compañía interna de
+// Tyndall (esInterna=true): ahí vive el super_admin_sistema real y la
+// cuenta demo, desactivarla te dejaría sin acceso al propio panel.
+// Los usuarios de una compañía inactiva no pueden iniciar sesión
+// (ver authController.login) ni seguir operando con una sesión ya abierta
+// (ver middlewares/authMiddleware.js).
+const setCompanyActivo = async (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+
+  if (typeof activo !== 'boolean') {
+    return res.status(400).json({ error: 'El campo "activo" debe ser true o false.' });
+  }
+
+  try {
+    const company = await prisma.company.findUnique({ where: { id: parseInt(id) } });
+    if (!company) {
+      return res.status(404).json({ error: 'Compañía no encontrada.' });
+    }
+    if (company.esInterna) {
+      return res.status(400).json({ error: 'No puedes desactivar la compañía interna.' });
+    }
+
+    const updated = await prisma.company.update({
+      where: { id: parseInt(id) },
+      data: { activo },
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error('Error al cambiar el estado de la compañía:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   listCompanies,
   updateCompanyPlan,
+  setCompanyActivo,
 };
