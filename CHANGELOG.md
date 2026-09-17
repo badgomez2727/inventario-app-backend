@@ -1,6 +1,20 @@
 # Changelog
 
-## Sin publicar
+## 1.0.0
+
+### En palabras simples (para contarle a los clientes)
+
+Desde la 0.9.1 hasta esta 1.0.0, así fue evolucionando Vendita:
+
+- **Más seguro por dentro.** Reforzamos varios controles de seguridad internos (quién puede hacer qué, y que cada compañía solo vea sus propios datos). No vas a notar nada distinto en el día a día, pero tu información está mejor protegida.
+- **Ver u ocultar tu contraseña** con un clic al escribirla, en vez de escribir a ciegas.
+- **Detalle de cada venta** con un clic, sin tener que descargar el PDF cada vez que quieres revisar qué se vendió.
+- **Abonos y pagos parciales**: ahora puedes dejar una venta como pendiente o parcial e ir registrando los pagos que el cliente te va haciendo, hasta completarla.
+- **Sesión de 8 horas** en vez de 1 — ya no te saca de la aplicación a mitad de tu jornada.
+- **Anular una venta** cuando te equivocas o el cliente se arrepiente: el stock de esos productos vuelve automáticamente al inventario, y queda registrado quién la anuló, cuándo y por qué. Las ventas anuladas ya no se cuentan en tus totales ni reportes, pero siguen visibles en el historial con su motivo.
+- **Recuperar tu contraseña es más seguro**: el proceso es igual de simple, pero ya no revela si un correo está o no registrado en el sistema.
+- **Mensajes más claros**: si intentas borrar un producto, proveedor o cliente que ya tiene historial (ventas, movimientos de stock), ahora te lo explica en vez de mostrar un error genérico.
+- **Corregimos un bug molesto**: si recargabas la página estando en cualquier sección, te mandaba de vuelta al inicio — ya no pasa.
 
 ### Agregado
 
@@ -15,6 +29,18 @@
 - Frontend: botón "Anular venta" en el detalle de venta (solo visible para `admin_compania`), con confirmación y campo de motivo obligatorio; banner de "Venta anulada" con el motivo, y bloqueo del formulario de registrar pago sobre una venta anulada.
 - Tests de integración (`tests/sale-void.test.js`): anulación con devolución de stock, rechazo con pagos activos, rechazo a empleado, rechazo sobre venta de otra compañía, doble anulación rechazada, motivo obligatorio, bloqueo de pagos sobre venta anulada, y exclusión de reportes.
 
+### Cambiado
+
+- `authMiddleware` ahora consulta si la compañía del token sigue activa en cada petición (antes solo leía el JWT). Agrega una consulta a la base de datos por request — necesario para que desactivar una compañía tenga efecto inmediato en vez de esperar hasta 8h a que expire el token.
+
+### Eliminado
+
+- Función muerta `pruebaResend` en `authController.js` (no estaba exportada ni tenía ninguna ruta; era un script de diagnóstico manual que quedó pegado al archivo).
+
+## v0.9.2 — Pagos con abonos, detalle de venta y sesión de 8h
+
+### Agregado
+
 - Módulo de pagos/abonos por venta (tabla `Payment`): `POST /api/sales/:id/payments` registra un pago (monto > 0 y no mayor al saldo pendiente, valida que la venta pertenezca a la compañía del usuario), `GET /api/sales/:id/payments` lista los pagos de una venta, `PATCH /api/sales/:id/payments/:paymentId/anular` anula un pago (motivo obligatorio, nunca se borra el registro).
 - `estadoPago` de la venta (`PENDIENTE`/`PARCIAL`/`PAGADA`) ahora se recalcula automáticamente, en la misma transacción, cada vez que se registra o anula un pago — a partir de la suma de los pagos activos (no anulados).
 - Script de migración de datos `scripts/backfill-payments.js`: crea el pago histórico (por el total, con la fecha de la venta, método OTRO y nota "Registro previo a módulo de pagos") para las ventas que ya estaban en `PAGADA` antes de este módulo; verifica al final que el estado derivado coincide con el guardado para el 100% de las ventas y muestra el conteo. Corre en `--dry-run` por defecto.
@@ -24,11 +50,6 @@
 ### Cambiado
 
 - El token JWT ahora expira en 8 horas (antes 1 hora). Con 1h, una sesión de trabajo normal (o una ronda de pruebas) terminaba forzando el login a mitad de una acción.
-- `authMiddleware` ahora consulta si la compañía del token sigue activa en cada petición (antes solo leía el JWT). Agrega una consulta a la base de datos por request — necesario para que desactivar una compañía tenga efecto inmediato en vez de esperar hasta 8h a que expire el token.
-
-### Eliminado
-
-- Función muerta `pruebaResend` en `authController.js` (no estaba exportada ni tenía ninguna ruta; era un script de diagnóstico manual que quedó pegado al archivo).
 
 ### Sin cambios
 
