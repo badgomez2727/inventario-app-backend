@@ -1,8 +1,17 @@
 # Changelog
 
-## Sin publicar
+## 1.2.0
 
-### Agregado — v1.2 (catálogo público), Bloque 1 parte 1: fotos de producto
+### En palabras simples (para contarle a los clientes)
+
+- **Catálogo público, sin que tu cliente necesite instalar nada ni crear cuenta.** Cada negocio tiene su propia vitrina en línea (`vendita.tyndallcore.com/catalogo/tu-tienda`) con fotos, precios y disponibilidad — la activas y la configuras tú mismo desde "Catálogo Público" en el menú.
+- **Fotos reales de tus productos**, subidas desde el celular (con cámara o galería), varias por producto, reordenables.
+- **Tus clientes arman su pedido solos**: eligen productos, dejan su nombre y celular, dicen si recogen o piden domicilio, y al final se abre WhatsApp con el pedido ya escrito, listo para mandarte.
+- **Tú decides qué se publica**: cada producto tiene un interruptor de "mostrar en catálogo" — nada se hace público solo porque esté en tu inventario.
+- **Los pedidos no son ventas hasta que tú los confirmes.** Te llegan a una bandeja nueva ("Pedidos Catálogo") donde los revisas y decides: confirmar (se convierte en una venta pendiente de pago, con su cliente, lista para cobrar) o rechazar.
+- Al compartir el link de tu catálogo por WhatsApp, se ve una vista previa con el nombre, la descripción y la foto de tu negocio.
+
+### Agregado — Bloque 1 parte 1: fotos de producto
 
 - `Product.visibleEnCatalogo` (default `false`): controla qué productos se publican en el catálogo público — nada se muestra solo porque exista en el inventario.
 - Modelo `ProductImage`: varias fotos por producto, con orden explícito (la primera es la portada). Migración puramente aditiva.
@@ -12,7 +21,7 @@
 - Variables nuevas: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (documentadas en `.env.example`, `render.yaml` y el README — sección "Fotos de producto").
 - Tests de integración en `tests/product-images.test.js`.
 
-### Agregado — v1.2, Bloque 1 parte 2: configuración de empresa para el catálogo
+### Agregado — Bloque 1 parte 2: configuración de empresa para el catálogo
 
 - `Company.slug` (único, editable desde `/api/mi-compania`), `catalogoPublicoActivo`, `descripcionCatalogo`, `fotoPortadaCatalogo`, `whatsappVentas` (array de celulares normalizados a `+57`), `ofreceDomicilio` y `valorDomicilioDefault`. Migración puramente aditiva; ninguna compañía existente queda con el catálogo activo (todo `false`/vacío por defecto).
 - `GET`/`PATCH /api/mi-compania` (solo `admin_compania`/`super_admin_sistema`): configura la vitrina de la propia compañía. `PATCH` valida y normaliza: el `slug` se limpia con `src/utils/slug.js` (minúsculas, sin tildes, solo letras/números/guiones) y debe ser único; cada número de `whatsappVentas` pasa por `normalizePhoneCO` (reutilizado del Bloque B) y se rechaza si no es un celular colombiano válido; `valorDomicilioDefault` debe ser ≥ 0.
@@ -20,13 +29,13 @@
 - `POST /api/mi-compania/portada/firma`: firma de subida para la foto de portada del catálogo, mismo mecanismo que las fotos de producto (Parte 1).
 - Tests de integración en `tests/company-settings.test.js`.
 
-### Agregado — v1.2, Bloque 1 parte 3: catálogo público (lectura)
+### Agregado — Bloque 1 parte 3: catálogo público (lectura)
 
 - `GET /public/catalogo/:slug` (sin autenticación, montada antes de `authMiddleware` igual que `/auth`): devuelve la compañía (nombre, descripción, portada, WhatsApp, domicilio) y sus productos con `visibleEnCatalogo=true` y `activo=true`. Nunca expone `precioCompra` ni `stockActual` — solo `disponible: stockActual > 0`. Un slug inexistente y una compañía con el catálogo desactivado (o la compañía misma inactiva) responden el mismo `404` genérico, para no distinguir esos casos.
 - `publicCatalogLimiter`: 60 peticiones/minuto por IP (sin login no hay una identidad más fina por la que limitar).
 - Tests de integración en `tests/public-catalog.test.js`.
 
-### Agregado — v1.2, Bloque 1 parte 4: carrito y pedido
+### Agregado — Bloque 1 parte 4: carrito y pedido
 
 - Modelos `Pedido`/`PedidoItem` (migración puramente aditiva). Un pedido del catálogo público **no es una venta**: no toca stock, no genera `Payment`, y puede quedar sin confirmarse — mezclarlo en `Sale` habría obligado a excluirlo en cada reporte/cartera que ya suma o cuenta ventas, igual que `ANULADA` hoy. Se convierte en una `Sale` real recién cuando un admin lo confirma (próxima parte del bloque).
 - `POST /public/catalogo/:slug/pedido` (sin autenticación): recibe `items`, `cliente { nombre, telefono }`, `tipoEntrega` (`RECOGE`/`DOMICILIO`) y `direccionEntrega` si aplica. Nunca confía en nada que mande el visitante: cada producto se revalida contra el catálogo real (debe seguir `activo` y `visibleEnCatalogo`, con stock suficiente — chequeo informativo, no una reserva) y el precio se recalcula del `Product` real, nunca del body. El cliente se resuelve con `findOrCreateCliente` (Bloque B) — mismo celular, mismo cliente, sin duplicar.
@@ -36,7 +45,7 @@
 - `deleteClient` y el mensaje de `P2003` en `deleteProduct` ahora también consideran los pedidos al bloquear un borrado con historial.
 - Tests de integración en `tests/public-catalog.test.js`.
 
-### Agregado — v1.2, Bloque 1 parte 5: panel de pedidos (confirmar/rechazar)
+### Agregado — Bloque 1 parte 5: panel de pedidos (confirmar/rechazar)
 
 - `GET /api/pedidos` (filtrable por `?estado=`), `PATCH /api/pedidos/:id/confirmar`, `PATCH /api/pedidos/:id/rechazar` — no requieren admin, es trabajo operativo normal (igual que registrar un pago).
 - Confirmar un pedido crea la `Sale` real dentro de una transacción: misma mecánica atómica de stock que `createSale` (`stockActual >= cantidad` en el mismo `UPDATE`), usando los ítems y precios ya guardados en el pedido (no algo nuevo del body). La venta queda **`estadoPago: PENDIENTE`** a propósito — el cliente paga al recibir/recoger, no antes — así aparece en la cartera (Bloque B) hasta que se registre el pago real. `sale.total` incluye el domicilio si lo hay (los `SaleItem` solo representan los productos).
