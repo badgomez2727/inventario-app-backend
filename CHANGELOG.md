@@ -2,6 +2,14 @@
 
 ## Sin publicar
 
+### Agregado
+
+- CRUD de usuarios completo: `PUT /api/users/:id` edita nombre/email/rol, `PATCH /api/users/:id/activo` activa/desactiva. Siempre dentro de la compañía del admin que llama (404 si el usuario es de otra compañía) y con la misma lista blanca de roles que `POST /api/users`.
+- Reglas de protección: un admin no puede quitarse a sí mismo el rol de administrador ni desactivarse a sí mismo; ninguna acción puede dejar a la compañía sin ningún `admin_compania` activo (ni degradando de rol ni desactivando al último). `super_admin_sistema` nunca se puede editar/desactivar desde estas rutas, aunque perteneciera a la misma compañía.
+- `listUsers` ahora también devuelve `activo`, necesario para mostrar el estado en el frontend.
+- Frontend: el formulario de "Nuevo Integrante" en `UserManagementPage` ahora también sirve para editar (nombre, email, rol); nueva columna de estado y botón de activar/desactivar por usuario, con confirmación. El botón de desactivar no aparece sobre el propio usuario logueado.
+- Tests de integración (`tests/users.test.js`): editar/desactivar usuario de otra compañía (rechazado), rol no permitido (rechazado), auto-desactivación y auto-degradación de rol (rechazadas), dejar la compañía sin ningún admin activo (rechazado, tanto por rol como por desactivación), email duplicado (mensaje claro), y que un empleado no pueda usar estas rutas.
+
 ### Cambiado
 
 - Correo de recuperación de contraseña: el remitente ya no está fijo en `onboarding@resend.dev` (el dominio de pruebas de Resend, que solo entrega al correo de la propia cuenta) — ahora usa la variable `EMAIL_FROM`, con `Vendita <no-reply@mail.tyndallcore.com>` como valor por defecto. Ese dominio ya está verificado en Resend (SPF, DKIM, DMARC).
