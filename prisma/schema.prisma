@@ -204,10 +204,10 @@
       direccion           String?
       companyId           Int
       // Desactivar (no borrar) es la forma preferida de "dar de baja" a un
-      // cliente que ya tiene historial de ventas — el borrado físico sigue
-      // existiendo (deleteClient) pero hoy no está bloqueado por historial
-      // (sales.clientId es ON DELETE SET NULL), así que puede perder el
-      // rastro de a quién le vendiste. Ver CHANGELOG para el detalle.
+      // cliente que ya tiene historial de ventas. El borrado físico
+      // (deleteClient) sigue existiendo pero se rechaza a nivel de
+      // aplicación si el cliente tiene alguna venta asociada — el esquema
+      // en sí no cambió, sales.clientId sigue siendo ON DELETE SET NULL.
       activo              Boolean         @default(true)
       company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
       sales               Sale[]          // Relación inversa para ver las ventas de un cliente
