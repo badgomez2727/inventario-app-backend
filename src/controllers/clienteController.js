@@ -2,21 +2,48 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { normalizePhoneCO } = require('../utils/phone');
+const { normalizeText, onlyDigits } = require('../utils/text');
 const prisma = new PrismaClient();
 
 const TELEFONO_INVALIDO_MSG = 'Número de celular inválido. Usa un celular colombiano de 10 dígitos (ej. 3001234567).';
 
-// Listar todos los clientes de la compañía
+// Listar todos los clientes de la compañía, con búsqueda opcional por
+// nombre o celular. La búsqueda tolera mayúsculas, tildes y el formato del
+// número (con o sin +57, espacios o guiones) — se resuelve en memoria (no
+// con ILIKE de Postgres) porque acentos/celular necesitan normalizarse
+// igual que ya hace normalizePhoneCO al guardar, y el volumen de clientes
+// de un negocio chico no justifica meter la extensión unaccent.
 const listClients = async (req, res) => {
   const companyId = parseInt(req.companyId); // Asegúrate de que sea un entero
-
-  // Paginación: evita traer todos los clientes de una sola vez cuando la
-  // lista crece con el uso real del negocio.
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const search = (req.query.search || '').trim();
 
   try {
+    if (search) {
+      const searchNorm = normalizeText(search);
+      const searchDigits = onlyDigits(search);
+
+      const todos = await prisma.client.findMany({ where: { companyId }, orderBy: { nombre: 'asc' } });
+      const filtrados = todos.filter((c) => {
+        const nombreMatch = normalizeText(c.nombre).includes(searchNorm);
+        const telefonoMatch = searchDigits.length > 0 && onlyDigits(c.telefono).includes(searchDigits);
+        return nombreMatch || telefonoMatch;
+      });
+
+      const totalCount = filtrados.length;
+      const skip = (page - 1) * limit;
+      return res.json({
+        clients: filtrados.slice(skip, skip + limit),
+        totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+        currentPage: page,
+        totalCount,
+      });
+    }
+
+    // Paginación normal (sin búsqueda): evita traer todos los clientes de
+    // una sola vez cuando la lista crece con el uso real del negocio.
+    const skip = (page - 1) * limit;
     const [clients, totalCount] = await Promise.all([
       prisma.client.findMany({
         where: { companyId },
@@ -217,6 +244,24 @@ const findOrCreateCliente = async (tx, companyId, { nombre, telefono }) => {
   return { cliente: creado, reutilizado: false };
 };
 
+// Resumen de una venta (pagado/saldo/antigüedad) a partir de sus pagos
+// activos — usado tanto por la cartera general como por el estado de
+// cuenta de un cliente puntual, para que el cálculo sea siempre el mismo.
+const resumenVenta = (venta) => {
+  const pagado = venta.payments.reduce((sum, p) => sum + Number(p.monto), 0);
+  const saldo = Number(venta.total) - pagado;
+  const diasAntiguedad = Math.floor((Date.now() - new Date(venta.fechaVenta).getTime()) / 86400000);
+  return {
+    saleId: venta.id,
+    fecha: venta.fechaVenta,
+    total: Number(venta.total),
+    pagado,
+    saldo,
+    diasAntiguedad,
+    estadoPago: venta.estadoPago,
+  };
+};
+
 // Cartera: para cada cliente de la compañía con al menos una venta
 // PENDIENTE o PARCIAL activa (no anulada), su saldo adeudado, cuántas
 // ventas pendientes tiene, y la antigüedad (en días) de la más vieja —
@@ -239,13 +284,10 @@ const getCartera = async (req, res) => {
       orderBy: { fechaVenta: 'asc' },
     });
 
-    const ahora = Date.now();
     const porCliente = new Map();
 
     for (const venta of ventasPendientes) {
-      const pagado = venta.payments.reduce((sum, p) => sum + Number(p.monto), 0);
-      const saldo = Number(venta.total) - pagado;
-      const diasAntiguedad = Math.floor((ahora - new Date(venta.fechaVenta).getTime()) / 86400000);
+      const resumen = resumenVenta(venta);
 
       const entry = porCliente.get(venta.client.id) || {
         clienteId: venta.client.id,
@@ -255,16 +297,8 @@ const getCartera = async (req, res) => {
         ventasPendientes: [],
       };
 
-      entry.totalAdeudado += saldo;
-      entry.ventasPendientes.push({
-        saleId: venta.id,
-        fecha: venta.fechaVenta,
-        total: Number(venta.total),
-        pagado,
-        saldo,
-        diasAntiguedad,
-        estadoPago: venta.estadoPago,
-      });
+      entry.totalAdeudado += resumen.saldo;
+      entry.ventasPendientes.push(resumen);
 
       porCliente.set(venta.client.id, entry);
     }
@@ -278,6 +312,65 @@ const getCartera = async (req, res) => {
   }
 };
 
+// Estado de cuenta de UN cliente puntual (v1.3): sus datos, el saldo total
+// que debe, cada venta pendiente/parcial con su detalle, su historial de
+// ventas ya pagadas, y el total histórico comprado (todo lo no anulado,
+// pagado o no). Es la vista de "clic en un cliente y ver todo".
+const getEstadoCuentaCliente = async (req, res) => {
+  const companyId = req.companyId;
+  const clientId = parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(clientId)) {
+    return res.status(400).json({ error: 'Cliente inválido.' });
+  }
+
+  try {
+    const cliente = await prisma.client.findFirst({ where: { id: clientId, companyId } });
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado o no autorizado.' });
+    }
+
+    const ventas = await prisma.sale.findMany({
+      where: { companyId, clientId, estado: { not: 'ANULADA' } },
+      include: { payments: { where: { anulado: false }, select: { monto: true } } },
+      orderBy: { fechaVenta: 'desc' },
+    });
+
+    const ventasPendientes = [];
+    const historialPagadas = [];
+    let totalHistoricoComprado = 0;
+
+    for (const venta of ventas) {
+      totalHistoricoComprado += Number(venta.total);
+      if (venta.estadoPago === 'PAGADA') {
+        historialPagadas.push({ saleId: venta.id, fecha: venta.fechaVenta, total: Number(venta.total) });
+      } else {
+        ventasPendientes.push(resumenVenta(venta));
+      }
+    }
+
+    const saldoTotal = ventasPendientes.reduce((sum, v) => sum + v.saldo, 0);
+
+    res.json({
+      cliente: {
+        id: cliente.id,
+        nombre: cliente.nombre,
+        telefono: cliente.telefono,
+        email: cliente.email,
+        direccion: cliente.direccion,
+        activo: cliente.activo,
+      },
+      saldoTotal,
+      ventasPendientes,
+      historialPagadas,
+      totalHistoricoComprado,
+    });
+  } catch (error) {
+    console.error('Error al obtener el estado de cuenta del cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   listClients,
   createClient,
@@ -286,5 +379,6 @@ module.exports = {
   deleteClient,
   findOrCreateCliente,
   getCartera,
+  getEstadoCuentaCliente,
   TELEFONO_INVALIDO_MSG,
 };

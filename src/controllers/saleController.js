@@ -369,9 +369,44 @@ const getSalesHistory = async (req, res) => {
 };
 
 
+// Detalle de una sola venta (v1.3): para abrir SaleDetailModal desde otros
+// lugares que no son el historial paginado (ej. el estado de cuenta de un
+// cliente) sin tener que traer/filtrar todo el historial para encontrarla.
+// Los pagos NO van incluidos acá — SaleDetailModal ya los trae aparte con
+// GET /api/sales/:id/payments.
+const getSaleById = async (req, res) => {
+  const companyId = req.companyId;
+  const saleId = parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(saleId)) {
+    return res.status(400).json({ error: 'Venta inválida.' });
+  }
+
+  try {
+    const sale = await prisma.sale.findFirst({
+      where: { id: saleId, companyId },
+      include: {
+        user: { select: { nombreUsuario: true } },
+        client: { select: { id: true, nombre: true, telefono: true } },
+        saleItems: { include: { product: { select: { nombre: true } } } },
+      },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: 'Venta no encontrada o no pertenece a tu compañía.' });
+    }
+
+    res.json(sale);
+  } catch (error) {
+    console.error('Error al obtener el detalle de la venta:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   createSale,
   getSalesHistory,
+  getSaleById,
   anularVenta,
   asignarClienteAVenta,
 };

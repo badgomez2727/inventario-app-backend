@@ -246,3 +246,145 @@ describe('GET /api/clientes/cartera', () => {
     expect(res.body.find((c) => c.clienteId === clientB.id)).toBeUndefined();
   });
 });
+
+describe('GET /api/clientes?search= (buscador por nombre o celular)', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('busca por nombre sin importar mayúsculas ni tildes', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    await createClient(company.id, { nombre: 'María José Peña' });
+    await createClient(company.id, { nombre: 'Otro Cliente' });
+
+    const res = await request(app)
+      .get('/api/clientes?search=maria jose')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.clients).toHaveLength(1);
+    expect(res.body.clients[0].nombre).toBe('María José Peña');
+  });
+
+  test('busca por celular tolerando +57, espacios y guiones en cualquier orden', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    await createClient(company.id, { nombre: 'Con Celular', telefono: '+573001112222' });
+    await createClient(company.id, { nombre: 'Otro Sin Relación', telefono: '+573009998888' });
+
+    for (const busqueda of ['3001112222', '300 111 2222', '300-111-2222', '+57 300 111 2222']) {
+      const res = await request(app)
+        .get(`/api/clientes?search=${encodeURIComponent(busqueda)}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.body.clients).toHaveLength(1);
+      expect(res.body.clients[0].nombre).toBe('Con Celular');
+    }
+  });
+
+  test('sin resultados devuelve una lista vacía, no un error', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    await createClient(company.id, { nombre: 'Alguien' });
+
+    const res = await request(app)
+      .get('/api/clientes?search=nadie-coincide-con-esto')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.clients).toHaveLength(0);
+    expect(res.body.totalCount).toBe(0);
+  });
+
+  test('la búsqueda no cruza compañías', async () => {
+    const companyA = await createCompany();
+    const companyB = await createCompany();
+    const adminA = await createUser(companyA.id, 'admin_compania');
+    await createClient(companyB.id, { nombre: 'Cliente De B' });
+    const token = signToken(adminA);
+
+    const res = await request(app)
+      .get('/api/clientes?search=Cliente De B')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.body.clients).toHaveLength(0);
+  });
+});
+
+describe('GET /api/clientes/:id/estado-cuenta', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('calcula saldo con abonos, separa pagadas de pendientes, y excluye ventas anuladas', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    const token = signToken(admin);
+
+    // Pendiente sin abonos.
+    await createSale(company.id, admin.id, { clientId: client.id, total: 10000, estadoPago: 'PENDIENTE' });
+
+    // Parcial con un abono de 3000.
+    const ventaParcial = await createSale(company.id, admin.id, { clientId: client.id, total: 8000, estadoPago: 'PARCIAL' });
+    await prisma.payment.create({
+      data: { saleId: ventaParcial.id, companyId: company.id, monto: 3000, metodo: 'EFECTIVO', userId: admin.id },
+    });
+
+    // Pagada — va al historial, no a pendientes, pero sí al total histórico.
+    await createSale(company.id, admin.id, { clientId: client.id, total: 5000, estadoPago: 'PAGADA' });
+
+    // Anulada — no debe contar para nada.
+    await createSale(company.id, admin.id, { clientId: client.id, total: 9999, estado: 'ANULADA', estadoPago: 'PENDIENTE' });
+
+    const res = await request(app)
+      .get(`/api/clientes/${client.id}/estado-cuenta`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.cliente.id).toBe(client.id);
+    expect(res.body.saldoTotal).toBe(10000 + 5000); // 10000 sin abonar + (8000-3000) del parcial
+    expect(res.body.ventasPendientes).toHaveLength(2);
+    expect(res.body.historialPagadas).toHaveLength(1);
+    expect(res.body.historialPagadas[0].total).toBe(5000);
+    expect(res.body.totalHistoricoComprado).toBe(10000 + 8000 + 5000); // sin la anulada
+
+    const parcialEnRespuesta = res.body.ventasPendientes.find((v) => v.saleId === ventaParcial.id);
+    expect(parcialEnRespuesta.pagado).toBe(3000);
+    expect(parcialEnRespuesta.saldo).toBe(5000);
+  });
+
+  test('un cliente sin ninguna venta responde con todo en cero, no un error', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .get(`/api/clientes/${client.id}/estado-cuenta`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.saldoTotal).toBe(0);
+    expect(res.body.ventasPendientes).toHaveLength(0);
+    expect(res.body.historialPagadas).toHaveLength(0);
+    expect(res.body.totalHistoricoComprado).toBe(0);
+  });
+
+  test('no se puede ver el estado de cuenta de un cliente de otra compañía', async () => {
+    const companyA = await createCompany();
+    const companyB = await createCompany();
+    const adminA = await createUser(companyA.id, 'admin_compania');
+    const clientB = await createClient(companyB.id);
+    const token = signToken(adminA);
+
+    const res = await request(app)
+      .get(`/api/clientes/${clientB.id}/estado-cuenta`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+});

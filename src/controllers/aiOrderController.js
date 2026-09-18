@@ -12,6 +12,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const Anthropic = require('@anthropic-ai/sdk');
+const { normalizeText } = require('../utils/text');
 
 const prisma = new PrismaClient();
 const anthropic = new Anthropic(); // Lee ANTHROPIC_API_KEY del entorno (.env).
@@ -98,14 +99,6 @@ const WORD_NUMBERS = {
   un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
   seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
 };
-
-const normalizeText = (str) =>
-  str
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 
 const splitIntoChunks = (texto) =>
   texto

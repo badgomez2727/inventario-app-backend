@@ -71,3 +71,60 @@ describe('POST /api/sales (CRÍTICO-3: condición de carrera en el stock)', () =
     expect(ventasCompletadas).toBe(1); // solo una venta quedó registrada
   });
 });
+
+describe('GET /api/sales/:id (detalle de una venta puntual)', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('devuelve la venta con sus ítems, cliente y vendedor', async () => {
+    const company = await createCompany();
+    const user = await createUser(company.id, 'admin_compania');
+    const product = await createProduct(company.id, { stockActual: 10 });
+    const token = signToken(user);
+
+    const creada = await request(app)
+      .post('/api/sales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ items: [{ productId: product.id, cantidad: 2 }], total: Number(product.precioVenta) * 2, estadoPago: 'PAGADA' });
+
+    const res = await request(app)
+      .get(`/api/sales/${creada.body.sale.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(creada.body.sale.id);
+    expect(res.body.saleItems).toHaveLength(1);
+    expect(res.body.saleItems[0].product.nombre).toBe(product.nombre);
+    expect(res.body.user.nombreUsuario).toBe(user.nombreUsuario);
+  });
+
+  test('no se puede ver el detalle de una venta de otra compañía', async () => {
+    const companyA = await createCompany();
+    const companyB = await createCompany();
+    const adminA = await createUser(companyA.id, 'admin_compania');
+    const userB = await createUser(companyB.id, 'admin_compania');
+    const ventaDeB = await prisma.sale.create({
+      data: { companyId: companyB.id, userId: userB.id, total: 5000, estado: 'Completada', estadoPago: 'PAGADA' },
+    });
+    const tokenA = signToken(adminA);
+
+    const res = await request(app)
+      .get(`/api/sales/${ventaDeB.id}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('un id que no existe responde 404, no un error de servidor', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .get('/api/sales/999999999')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+});

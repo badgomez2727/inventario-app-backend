@@ -1,7 +1,7 @@
 // venta_inventario_app/backend/src/routes/saleRoutes.js
 
 const express = require('express');
-const { createSale, getSalesHistory, anularVenta, asignarClienteAVenta } = require('../controllers/saleController'); // Asegúrate de que getSalesHistory esté importada
+const { createSale, getSalesHistory, getSaleById, anularVenta, asignarClienteAVenta } = require('../controllers/saleController'); // Asegúrate de que getSalesHistory esté importada
 const { registrarPago, listarPagos, anularPago } = require('../controllers/paymentController');
 const { authMiddleware } = require('../middlewares/authMiddleware');
 const { enforceSaleLimit } = require('../middlewares/planLimits');
@@ -14,6 +14,10 @@ router.post('/', authMiddleware, enforceSaleLimit, createSale);
 // Ruta para obtener el historial de ventas (protegida)
 // Esta es la ruta que tu frontend está intentando acceder: /api/sales/history
 router.get('/history', authMiddleware, getSalesHistory);
+
+// Detalle de una venta puntual — registrada DESPUÉS de '/history' para que
+// Express no intente interpretar "history" como un :id.
+router.get('/:id', authMiddleware, getSaleById);
 
 // Pagos/abonos de una venta (protegidas)
 router.post('/:id/payments', authMiddleware, registrarPago);

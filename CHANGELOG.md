@@ -1,5 +1,14 @@
 # Changelog
 
+## Sin publicar
+
+### Agregado — v1.3, Parte 1: buscador y detalle del cliente
+
+- `GET /api/clientes?search=` acepta un texto que filtra por nombre (tolerante a mayúsculas y tildes) o por celular (tolerante al formato: con o sin `+57`, espacios o guiones). Nuevo `src/utils/text.js` con `normalizeText`/`onlyDigits` (extraído de una copia que ya existía en `aiOrderController.js`, sin cambio de comportamiento).
+- `GET /api/clientes/:id/estado-cuenta`: datos del cliente, saldo total adeudado, cada venta pendiente o parcial (fecha, total, abonos, saldo, antigüedad en días), historial de ventas pagadas y el total histórico comprado. Excluye ventas anuladas del cálculo, igual que la cartera.
+- `GET /api/sales/:id`: detalle de una venta puntual, para poder abrirla desde el nuevo panel del cliente sin pasar por el historial general.
+- Tests de integración en `tests/clients.test.js` y `tests/sales.test.js`.
+
 ## 1.2.0
 
 ### En palabras simples (para contarle a los clientes)
