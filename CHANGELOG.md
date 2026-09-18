@@ -1,6 +1,11 @@
 # Changelog
 
-## Sin publicar
+## 1.0.1
+
+### En palabras simples (para contarle a los clientes)
+
+- **Los correos ya llegan de verdad.** Antes, el de recuperar contraseña casi nunca le llegaba a un usuario real (usaba el dominio de pruebas de nuestro proveedor de correo); ahora sale desde nuestro propio dominio, verificado.
+- **Gestión de tu equipo completa.** Ya puedes editar el nombre, correo o rol de cualquier integrante, y desactivar/reactivar el acceso de alguien sin tener que borrarlo (por ejemplo, si alguien sale del equipo temporalmente). Siempre queda al menos un administrador activo, para que nadie se quede sin poder entrar a su propia cuenta por accidente.
 
 ### Agregado
 
@@ -9,17 +14,14 @@
 - `listUsers` ahora también devuelve `activo`, necesario para mostrar el estado en el frontend.
 - Frontend: el formulario de "Nuevo Integrante" en `UserManagementPage` ahora también sirve para editar (nombre, email, rol); nueva columna de estado y botón de activar/desactivar por usuario, con confirmación. El botón de desactivar no aparece sobre el propio usuario logueado.
 - Tests de integración (`tests/users.test.js`): editar/desactivar usuario de otra compañía (rechazado), rol no permitido (rechazado), auto-desactivación y auto-degradación de rol (rechazadas), dejar la compañía sin ningún admin activo (rechazado, tanto por rol como por desactivación), email duplicado (mensaje claro), y que un empleado no pueda usar estas rutas.
+- `.env.example` con todas las variables de entorno reales que usa el backend, documentadas.
+- Sección "Correos (Resend)" en el README explicando `RESEND_API_KEY` y `EMAIL_FROM`.
+- `EMAIL_FROM` agregada a `render.yaml` (mismo valor en staging y producción, no es sensible).
 
 ### Cambiado
 
 - Correo de recuperación de contraseña: el remitente ya no está fijo en `onboarding@resend.dev` (el dominio de pruebas de Resend, que solo entrega al correo de la propia cuenta) — ahora usa la variable `EMAIL_FROM`, con `Vendita <no-reply@mail.tyndallcore.com>` como valor por defecto. Ese dominio ya está verificado en Resend (SPF, DKIM, DMARC).
 - Contenido del correo de recuperación mejorado: asunto más claro, aclara que "alguien" solicitó el cambio (no asume que fue el destinatario), y separa en su propia línea que ignorar el correo no tiene ningún efecto (la contraseña actual sigue siendo válida).
-
-### Agregado
-
-- `.env.example` con todas las variables de entorno reales que usa el backend, documentadas.
-- Sección "Correos (Resend)" en el README explicando `RESEND_API_KEY` y `EMAIL_FROM`.
-- `EMAIL_FROM` agregada a `render.yaml` (mismo valor en staging y producción, no es sensible).
 
 ## 1.0.0
 
