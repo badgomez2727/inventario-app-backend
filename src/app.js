@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const aiOrderRoutes = require('./routes/aiOrderRoutes');
 const companySettingsRoutes = require('./routes/companySettingsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const pedidoRoutes = require('./routes/pedidoRoutes');
 
 const prisma = new PrismaClient();
 const app = express(); // La instancia 'app' debe ser declarada antes de usarse
@@ -96,6 +97,7 @@ app.use('/api/receipts', receiptRoutes);
 app.use('/api/admin', adminRoutes); // Solo accesible con rol super_admin_sistema
 app.use('/api/pedidos-ia', aiOrderRoutes); // Borrador de pedidos por WhatsApp con IA (solo plan PRO)
 app.use('/api/mi-compania', companySettingsRoutes); // Configuración del catálogo público, solo admin_compania
+app.use('/api/pedidos', pedidoRoutes); // Pedidos del catálogo público — confirmar/rechazar
 
 // Iniciar el servidor — pero no cuando este archivo se importa desde los
 // tests (Supertest hace su propio listen() en un puerto efímero; si

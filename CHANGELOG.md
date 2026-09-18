@@ -36,6 +36,14 @@
 - `deleteClient` y el mensaje de `P2003` en `deleteProduct` ahora también consideran los pedidos al bloquear un borrado con historial.
 - Tests de integración en `tests/public-catalog.test.js`.
 
+### Agregado — v1.2, Bloque 1 parte 5: panel de pedidos (confirmar/rechazar)
+
+- `GET /api/pedidos` (filtrable por `?estado=`), `PATCH /api/pedidos/:id/confirmar`, `PATCH /api/pedidos/:id/rechazar` — no requieren admin, es trabajo operativo normal (igual que registrar un pago).
+- Confirmar un pedido crea la `Sale` real dentro de una transacción: misma mecánica atómica de stock que `createSale` (`stockActual >= cantidad` en el mismo `UPDATE`), usando los ítems y precios ya guardados en el pedido (no algo nuevo del body). La venta queda **`estadoPago: PENDIENTE`** a propósito — el cliente paga al recibir/recoger, no antes — así aparece en la cartera (Bloque B) hasta que se registre el pago real. `sale.total` incluye el domicilio si lo hay (los `SaleItem` solo representan los productos).
+- Si el stock bajó desde que se hizo el pedido, confirmar se rechaza con un mensaje claro y el pedido sigue `PENDIENTE_REVISION` (no queda a medias).
+- Rechazar exige motivo, no toca stock ni crea venta. Ninguno de los dos se puede aplicar dos veces sobre el mismo pedido.
+- Tests de integración en `tests/pedidos.test.js`, incluida una verificación de punta a punta con la cartera del Bloque B.
+
 ### Corregido
 
 - `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.
