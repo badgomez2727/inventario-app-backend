@@ -12,6 +12,14 @@
 - Variables nuevas: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (documentadas en `.env.example`, `render.yaml` y el README — sección "Fotos de producto").
 - Tests de integración en `tests/product-images.test.js`.
 
+### Agregado — v1.2, Bloque 1 parte 2: configuración de empresa para el catálogo
+
+- `Company.slug` (único, editable desde `/api/mi-compania`), `catalogoPublicoActivo`, `descripcionCatalogo`, `fotoPortadaCatalogo`, `whatsappVentas` (array de celulares normalizados a `+57`), `ofreceDomicilio` y `valorDomicilioDefault`. Migración puramente aditiva; ninguna compañía existente queda con el catálogo activo (todo `false`/vacío por defecto).
+- `GET`/`PATCH /api/mi-compania` (solo `admin_compania`/`super_admin_sistema`): configura la vitrina de la propia compañía. `PATCH` valida y normaliza: el `slug` se limpia con `src/utils/slug.js` (minúsculas, sin tildes, solo letras/números/guiones) y debe ser único; cada número de `whatsappVentas` pasa por `normalizePhoneCO` (reutilizado del Bloque B) y se rechaza si no es un celular colombiano válido; `valorDomicilioDefault` debe ser ≥ 0.
+- No se puede activar `catalogoPublicoActivo` sin tener ya (o mandar en la misma petición) un `slug` y al menos un número en `whatsappVentas` — sin eso, un pedido no tendría a dónde llegar.
+- `POST /api/mi-compania/portada/firma`: firma de subida para la foto de portada del catálogo, mismo mecanismo que las fotos de producto (Parte 1).
+- Tests de integración en `tests/company-settings.test.js`.
+
 ### Corregido
 
 - `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.

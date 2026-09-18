@@ -32,6 +32,22 @@
       fechaCreacion       DateTime      @map("fecha_creacion") @default(now()) @db.Timestamp(0)
       fechaActualizacion  DateTime      @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
 
+      // --- Catálogo público (v1.2) ---
+      // Identificador en la URL pública: /catalogo/:slug. Null hasta que un
+      // admin lo configura la primera vez (ver companySettingsController.js);
+      // no se genera solo para compañías existentes.
+      slug                  String?     @unique @db.VarChar(100)
+      // Nada se muestra públicamente mientras esto sea false, aunque el slug
+      // ya esté configurado — el admin decide cuándo "abrir" la vitrina.
+      catalogoPublicoActivo Boolean     @default(false) @map("catalogo_publico_activo")
+      descripcionCatalogo   String?     @map("descripcion_catalogo") @db.Text
+      fotoPortadaCatalogo   String?     @map("foto_portada_catalogo") @db.VarChar(500)
+      // Array nativo de Postgres — se usa el primero para el link de
+      // WhatsApp que se arma automáticamente al enviar un pedido.
+      whatsappVentas        String[]    @default([]) @map("whatsapp_ventas")
+      ofreceDomicilio       Boolean     @default(false) @map("ofrece_domicilio")
+      valorDomicilioDefault Decimal?    @map("valor_domicilio_default") @db.Decimal(10, 2)
+
       users               User[]
       products            Product[]
       clients             Client[]
