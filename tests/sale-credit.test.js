@@ -87,6 +87,53 @@ describe('Cliente obligatorio en ventas a crédito (POST /api/sales)', () => {
     expect(res.body.sale.clientId).toBe(client.id);
   });
 
+  test('una venta con un clientId inexistente se rechaza con mensaje claro', async () => {
+    const company = await createCompany();
+    const user = await createUser(company.id, 'admin_compania');
+    const product = await createProduct(company.id, { stockActual: 10 });
+    const token = signToken(user);
+
+    const res = await request(app)
+      .post('/api/sales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        total: Number(product.precioVenta),
+        estadoPago: 'PAGADA', // no necesita ser a crédito para probar esto
+        clientId: 999999999,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no existe/i);
+
+    const ventasCreadas = await prisma.sale.count({ where: { companyId: company.id } });
+    expect(ventasCreadas).toBe(0);
+  });
+
+  test('una venta con un cliente desactivado se rechaza (ej. la lista del POS quedó desactualizada)', async () => {
+    const company = await createCompany();
+    const user = await createUser(company.id, 'admin_compania');
+    const product = await createProduct(company.id, { stockActual: 10 });
+    const client = await createClient(company.id, { activo: false });
+    const token = signToken(user);
+
+    const res = await request(app)
+      .post('/api/sales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        total: Number(product.precioVenta),
+        estadoPago: 'PENDIENTE',
+        clientId: client.id,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/desactivado/i);
+
+    const ventasCreadas = await prisma.sale.count({ where: { companyId: company.id } });
+    expect(ventasCreadas).toBe(0);
+  });
+
   test('clienteNuevo crea un cliente nuevo y lo asocia a la venta', async () => {
     const company = await createCompany();
     const user = await createUser(company.id, 'admin_compania');
@@ -246,5 +293,26 @@ describe('PATCH /api/sales/:id/cliente (asignar cliente a una venta existente)',
       .send({ clientId: client.id });
 
     expect(res.status).toBe(400);
+  });
+
+  test('no se puede asignar un cliente desactivado a una venta', async () => {
+    const company = await createCompany();
+    const user = await createUser(company.id, 'admin_compania');
+    const sale = await prisma.sale.create({
+      data: { companyId: company.id, userId: user.id, total: 5000, estado: 'Completada', estadoPago: 'PENDIENTE' },
+    });
+    const clienteInactivo = await createClient(company.id, { activo: false });
+    const token = signToken(user);
+
+    const res = await request(app)
+      .patch(`/api/sales/${sale.id}/cliente`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ clientId: clienteInactivo.id });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/desactivado/i);
+
+    const ventaSinCambios = await prisma.sale.findUnique({ where: { id: sale.id } });
+    expect(ventaSinCambios.clientId).toBeNull();
   });
 });

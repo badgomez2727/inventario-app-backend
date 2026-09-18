@@ -1,5 +1,12 @@
 # Changelog
 
+## Sin publicar
+
+### Corregido
+
+- `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.
+- Tests en `tests/sale-credit.test.js`: `clientId` inexistente y `clientId` desactivado rechazados, en ambos endpoints.
+
 ## 1.1.0
 
 ### En palabras simples (para contarle a los clientes)

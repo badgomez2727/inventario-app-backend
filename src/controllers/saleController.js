@@ -34,13 +34,22 @@ const createSale = async (req, res) => {
       let clienteReutilizado = false;
 
       // 1.5 Resolver el cliente: uno existente (validando que sea de esta
-      //     compañía) o uno nuevo/reutilizado a partir de clienteNuevo.
+      //     compañía y esté activo) o uno nuevo/reutilizado a partir de
+      //     clienteNuevo. Este chequeo es necesario aunque el frontend ya
+      //     filtre los clientes inactivos de su selector — esa lista puede
+      //     quedar desactualizada (otra pestaña desactivó o borró al
+      //     cliente mientras el POS seguía abierto).
       if (clientId) {
         const client = await tx.client.findFirst({
           where: { id: parseInt(clientId), companyId },
         });
         if (!client) {
           const err = new Error('El cliente indicado no existe o no pertenece a tu compañía.');
+          err.status = 400;
+          throw err;
+        }
+        if (!client.activo) {
+          const err = new Error('Este cliente está desactivado. Reactívalo o elige/crea otro cliente.');
           err.status = 400;
           throw err;
         }
@@ -179,6 +188,11 @@ const asignarClienteAVenta = async (req, res) => {
         const client = await tx.client.findFirst({ where: { id: parseInt(clientId), companyId } });
         if (!client) {
           const err = new Error('El cliente indicado no existe o no pertenece a tu compañía.');
+          err.status = 400;
+          throw err;
+        }
+        if (!client.activo) {
+          const err = new Error('Este cliente está desactivado. Reactívalo o elige/crea otro cliente.');
           err.status = 400;
           throw err;
         }
