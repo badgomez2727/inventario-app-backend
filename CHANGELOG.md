@@ -1,6 +1,12 @@
 # Changelog
 
-## Sin publicar
+## 1.1.0
+
+### En palabras simples (para contarle a los clientes)
+
+- **Fiar ya no es a ciegas.** Toda venta que quede pendiente o parcial ahora te pide un cliente — si no lo tienes registrado, lo creas ahí mismo con solo el nombre y el celular, sin salir de la venta. Si ese celular ya estaba registrado, usamos el cliente que ya tenías en vez de crear uno repetido.
+- **Cartera de clientes.** Una vista nueva te muestra, cliente por cliente, cuánto te debe, cuántas ventas tiene pendientes y hace cuántos días — para saber a quién cobrarle primero.
+- **Clientes con estado**, igual que tu equipo: puedes desactivar un cliente sin borrar su historial, y ya no se puede eliminar por accidente a un cliente que tiene ventas registradas.
 
 ### Agregado
 
@@ -8,13 +14,12 @@
 - `clienteNuevo: { nombre, telefono }` en `POST /api/sales` crea (o reutiliza, si ya existe un cliente con ese celular en la compañía) un cliente dentro de la misma transacción de la venta — no hace falta salir del formulario de venta para crear el cliente primero.
 - El celular se normaliza a formato internacional colombiano (`+57XXXXXXXXXX`, ver `src/utils/phone.js`) en creación/edición de clientes y en `clienteNuevo`; es el identificador para reutilizar un cliente en vez de duplicarlo. No hay constraint de base de datos sobre el celular (a propósito, ver nota en `schema.prisma`) — la reutilización es a nivel de aplicación.
 - `PATCH /api/sales/:id/cliente`: asigna o cambia el cliente de una venta existente (acepta `clientId` o `clienteNuevo`), pensado para ventas pendientes que quedaron sin cliente antes de esta validación. No requiere admin.
-- CRUD de clientes completo: `PATCH /api/clientes/:id/activo` activa/desactiva un cliente (no borra su historial). El borrado físico (`DELETE`) sigue existiendo.
+- CRUD de clientes completo: `PATCH /api/clientes/:id/activo` activa/desactiva un cliente (no borra su historial).
 - `GET /api/clientes/cartera`: para cada cliente con al menos una venta `PENDIENTE`/`PARCIAL` activa, su saldo adeudado total, la lista de esas ventas (con saldo y antigüedad en días de cada una) y el total general.
 - `scripts/check-pending-sales-without-client.js`: diagnóstico de solo lectura que cuenta cuántas ventas pendientes/parciales ya existentes quedaron sin cliente, por compañía.
 - Migración `add_client_activo_and_phone_index`: agrega `activo` (default `true`) a `clients` y un índice `(companyId, telefono)`. Puramente aditiva.
-- Tests de integración (`tests/sale-credit.test.js`, `tests/clients.test.js`): venta pendiente/parcial sin cliente rechazada, venta pagada con cliente opcional, creación y reutilización de cliente por celular desde la venta, celular inválido rechazado, asignar cliente a una venta existente (incluye rechazo entre compañías y sobre ventas anuladas), activar/desactivar cliente, y cálculo de cartera (saldo, antigüedad, exclusión de ventas pagadas/anuladas).
-
 - `DELETE /api/clientes/:id` ahora rechaza (409, "Este cliente tiene ventas registradas; desactívalo en vez de eliminarlo") si el cliente tiene al menos una venta asociada (de cualquier estado, incluidas las anuladas). Antes esto no fallaba nunca (`sales.client_id` es `ON DELETE SET NULL` a nivel de esquema, sin tocar) y el borrado dejaba la venta huérfana de cliente en silencio — con la cartera ya siendo una función real, ese hueco importaba. La validación es a nivel de aplicación, no se tocó el esquema.
+- Tests de integración (`tests/sale-credit.test.js`, `tests/clients.test.js`): venta pendiente/parcial sin cliente rechazada, venta pagada con cliente opcional, creación y reutilización de cliente por celular desde la venta, celular inválido rechazado, asignar cliente a una venta existente (incluye rechazo entre compañías y sobre ventas anuladas), activar/desactivar cliente, borrado bloqueado con ventas, y cálculo de cartera (saldo, antigüedad, exclusión de ventas pagadas/anuladas).
 
 ### Cambiado
 
