@@ -26,6 +26,16 @@
 - `publicCatalogLimiter`: 60 peticiones/minuto por IP (sin login no hay una identidad más fina por la que limitar).
 - Tests de integración en `tests/public-catalog.test.js`.
 
+### Agregado — v1.2, Bloque 1 parte 4: carrito y pedido
+
+- Modelos `Pedido`/`PedidoItem` (migración puramente aditiva). Un pedido del catálogo público **no es una venta**: no toca stock, no genera `Payment`, y puede quedar sin confirmarse — mezclarlo en `Sale` habría obligado a excluirlo en cada reporte/cartera que ya suma o cuenta ventas, igual que `ANULADA` hoy. Se convierte en una `Sale` real recién cuando un admin lo confirma (próxima parte del bloque).
+- `POST /public/catalogo/:slug/pedido` (sin autenticación): recibe `items`, `cliente { nombre, telefono }`, `tipoEntrega` (`RECOGE`/`DOMICILIO`) y `direccionEntrega` si aplica. Nunca confía en nada que mande el visitante: cada producto se revalida contra el catálogo real (debe seguir `activo` y `visibleEnCatalogo`, con stock suficiente — chequeo informativo, no una reserva) y el precio se recalcula del `Product` real, nunca del body. El cliente se resuelve con `findOrCreateCliente` (Bloque B) — mismo celular, mismo cliente, sin duplicar.
+- Domicilio se rechaza si la compañía no lo ofrece o si falta la dirección; el `valorDomicilio` del pedido es un snapshot del `valorDomicilioDefault` de la compañía al momento del pedido.
+- La respuesta incluye `whatsappUrl` (`https://wa.me/...`) con el pedido ya armado como mensaje, listo para que el frontend redirija — se genera en el servidor para que el formato sea siempre consistente.
+- `publicPedidoLimiter`: 20 pedidos/hora por IP (más estricto que el de lectura, porque esto sí escribe en la base).
+- `deleteClient` y el mensaje de `P2003` en `deleteProduct` ahora también consideran los pedidos al bloquear un borrado con historial.
+- Tests de integración en `tests/public-catalog.test.js`.
+
 ### Corregido
 
 - `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.

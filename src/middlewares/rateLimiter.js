@@ -61,10 +61,24 @@ const publicCatalogLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo en un momento.' },
 });
 
+// Límite para POST /public/catalogo/:slug/pedido: a diferencia de leer el
+// catálogo, esto escribe en la base (crea un Pedido) — más caro y más
+// atractivo para abuso/spam que un GET. 20 pedidos/hora por IP alcanza para
+// un cliente real (incluso pidiendo varias veces) sin abrir la puerta a un
+// bot llenando la bandeja de pedidos pendientes.
+const publicPedidoLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados pedidos desde esta conexión. Intenta de nuevo más tarde.' },
+});
+
 module.exports = {
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
   aiOrderLimiter,
   publicCatalogLimiter,
+  publicPedidoLimiter,
 };

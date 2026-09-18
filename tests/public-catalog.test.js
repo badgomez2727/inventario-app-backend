@@ -125,3 +125,219 @@ describe('GET /public/catalogo/:slug', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('POST /public/catalogo/:slug/pedido', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('crea un pedido RECOGE válido, con su cliente y link de WhatsApp', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const product = await createProduct(company.id, {
+      nombre: 'Gaseosa 1.5L', precioVenta: 5000, stockActual: 10, visibleEnCatalogo: true,
+    });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 2 }],
+        cliente: { nombre: 'Juan Pérez', telefono: '3009998877' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(res.status).toBe(201);
+    expect(Number(res.body.total)).toBe(10000);
+    expect(res.body.whatsappUrl).toContain('https://wa.me/573001234567');
+    expect(res.body.whatsappUrl).toContain(encodeURIComponent('Gaseosa 1.5L'));
+
+    const pedidoEnBD = await prisma.pedido.findUnique({
+      where: { id: res.body.pedidoId },
+      include: { items: true, client: true },
+    });
+    expect(pedidoEnBD.estado).toBe('PENDIENTE_REVISION');
+    expect(pedidoEnBD.tipoEntrega).toBe('RECOGE');
+    expect(pedidoEnBD.items).toHaveLength(1);
+    expect(Number(pedidoEnBD.items[0].precioUnitario)).toBe(5000);
+    expect(pedidoEnBD.client.telefono).toBe('+573009998877');
+
+    // No toca stock — eso pasa solo al confirmar (siguiente parte).
+    const productoSinCambios = await prisma.product.findUnique({ where: { id: product.id } });
+    expect(productoSinCambios.stockActual).toBe(10);
+  });
+
+  test('crea un pedido a DOMICILIO, sumando el valor del domicilio al total', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    await request(app)
+      .patch('/api/mi-compania')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ofreceDomicilio: true, valorDomicilioDefault: 3000 });
+    const product = await createProduct(company.id, { precioVenta: 10000, stockActual: 5, visibleEnCatalogo: true });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: 'Ana López', telefono: '3011112233' },
+        tipoEntrega: 'DOMICILIO',
+        direccionEntrega: 'Calle 123 #45-67',
+      });
+
+    expect(res.status).toBe(201);
+    expect(Number(res.body.total)).toBe(13000); // 10000 + 3000 de domicilio
+
+    const pedidoEnBD = await prisma.pedido.findUnique({ where: { id: res.body.pedidoId } });
+    expect(pedidoEnBD.direccionEntrega).toBe('Calle 123 #45-67');
+    expect(Number(pedidoEnBD.valorDomicilio)).toBe(3000);
+  });
+
+  test('domicilio sin dirección se rechaza', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    await request(app)
+      .patch('/api/mi-compania')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ofreceDomicilio: true });
+    const product = await createProduct(company.id, { visibleEnCatalogo: true, stockActual: 5 });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: 'Sin Dirección', telefono: '3021234567' },
+        tipoEntrega: 'DOMICILIO',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('domicilio se rechaza si la tienda no lo ofrece', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const product = await createProduct(company.id, { visibleEnCatalogo: true, stockActual: 5 });
+    const slug = await activarCatalogo(token); // ofreceDomicilio queda en false por defecto
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: 'Cliente', telefono: '3031234567' },
+        tipoEntrega: 'DOMICILIO',
+        direccionEntrega: 'Calle falsa 123',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no ofrece domicilio/i);
+  });
+
+  test('un producto oculto o inactivo en el pedido se rechaza (no se confía en lo que manda el visitante)', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const productoOculto = await createProduct(company.id, { visibleEnCatalogo: false, stockActual: 5 });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: productoOculto.id, cantidad: 1 }],
+        cliente: { nombre: 'Cliente', telefono: '3041234567' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(res.status).toBe(400);
+
+    const pedidosCreados = await prisma.pedido.count({ where: { companyId: company.id } });
+    expect(pedidosCreados).toBe(0);
+  });
+
+  test('pedir más cantidad de la disponible se rechaza', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const product = await createProduct(company.id, { visibleEnCatalogo: true, stockActual: 2 });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 5 }],
+        cliente: { nombre: 'Cliente', telefono: '3051234567' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/stock/i);
+  });
+
+  test('un pedido sin nombre o celular del cliente se rechaza', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const product = await createProduct(company.id, { visibleEnCatalogo: true, stockActual: 5 });
+    const slug = await activarCatalogo(token);
+
+    const res = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: '', telefono: '' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('dos pedidos con el mismo celular reutilizan el mismo cliente', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const token = signToken(admin);
+    const product = await createProduct(company.id, { visibleEnCatalogo: true, stockActual: 10 });
+    const slug = await activarCatalogo(token);
+
+    const primero = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: 'Cliente Repetido', telefono: '3061112233' },
+        tipoEntrega: 'RECOGE',
+      });
+    const segundo = await request(app)
+      .post(`/public/catalogo/${slug}/pedido`)
+      .send({
+        items: [{ productId: product.id, cantidad: 1 }],
+        cliente: { nombre: 'Cliente Repetido Otra Vez', telefono: '306-111-2233' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(primero.status).toBe(201);
+    expect(segundo.status).toBe(201);
+
+    const pedido1 = await prisma.pedido.findUnique({ where: { id: primero.body.pedidoId } });
+    const pedido2 = await prisma.pedido.findUnique({ where: { id: segundo.body.pedidoId } });
+    expect(pedido1.clientId).toBe(pedido2.clientId);
+
+    const totalClientes = await prisma.client.count({ where: { companyId: company.id } });
+    expect(totalClientes).toBe(1);
+  });
+
+  test('un catálogo inexistente o desactivado no crea ningún pedido', async () => {
+    const res = await request(app)
+      .post('/public/catalogo/no-existe-esto-nunca/pedido')
+      .send({
+        items: [{ productId: 1, cantidad: 1 }],
+        cliente: { nombre: 'Cliente', telefono: '3071234567' },
+        tipoEntrega: 'RECOGE',
+      });
+
+    expect(res.status).toBe(404);
+  });
+});

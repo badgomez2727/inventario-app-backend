@@ -195,7 +195,7 @@ const deleteProduct = async (req, res) => {
       return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
     }
     if (error.code === 'P2003') {
-      return res.status(409).json({ error: 'No puedes eliminar este producto porque ya tiene ventas o movimientos de stock registrados.' });
+      return res.status(409).json({ error: 'No puedes eliminar este producto porque ya tiene ventas, pedidos o movimientos de stock registrados.' });
     }
     res.status(500).json({ error: 'Error interno del servidor al eliminar el producto.' });
   }

@@ -56,6 +56,7 @@
       sales               Sale[]
       productChangeLogs   ProductChangeLog[]
       payments            Payment[]
+      pedidos             Pedido[]
 
       @@map("companies")
     }
@@ -79,6 +80,7 @@
       passwordResetTokens PasswordResetToken[]
       productChangeLogs   ProductChangeLog[]
       payments            Payment[]
+      pedidosRevisados    Pedido[]        @relation("PedidosRevisados")
 
       @@map("users")
       @@unique([email, companyId])
@@ -111,6 +113,7 @@
       saleItems           SaleItem[]
       changeLogs          ProductChangeLog[]
       images              ProductImage[]
+      pedidoItems         PedidoItem[]
 
       company             Company         @relation(fields: [companyId], references: [id])
       supplier            Supplier?       @relation(fields: [supplierId], references: [id])
@@ -208,6 +211,7 @@
       anuladoPor          User?           @relation("SalesAnuladas", fields: [anuladoPorUserId], references: [id])
       saleItems           SaleItem[]
       payments            Payment[]
+      pedido              Pedido?
 
       @@map("sales")
       @@index([companyId])
@@ -251,6 +255,7 @@
       activo              Boolean         @default(true)
       company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
       sales               Sale[]          // Relación inversa para ver las ventas de un cliente
+      pedidos             Pedido[]
       createdAt           DateTime        @default(now())
       updatedAt           DateTime        @updatedAt
 
@@ -318,5 +323,60 @@ model Payment {
   @@index([saleId])
   @@index([companyId])
   @@index([userId])
+}
+
+// Pedido hecho desde el catálogo público (v1.2) — NO es una venta: nadie del
+// equipo lo generó, no toca stock ni Payment, y puede ser spam o nunca
+// confirmarse. Un admin lo revisa y decide: confirmar (crea una Sale real,
+// ver saleController.js -> confirmarPedido) o rechazar. Separado de Sale a
+// propósito — mezclar un estado "todavía no es una venta" ahí habría
+// obligado a excluirlo en cada reporte/cartera que ya suma o cuenta ventas,
+// igual que hoy hay que excluir ANULADA en varios lugares.
+model Pedido {
+  id                Int          @id @default(autoincrement())
+  companyId         Int          @map("company_id")
+  clientId          Int          @map("client_id")
+  tipoEntrega       String       @map("tipo_entrega") @db.VarChar(20) // RECOGE | DOMICILIO
+  direccionEntrega  String?      @map("direccion_entrega") @db.Text
+  // Snapshot del valor de domicilio de la compañía AL MOMENTO del pedido —
+  // si luego cambian valorDomicilioDefault, los pedidos viejos no se alteran.
+  valorDomicilio    Decimal?     @map("valor_domicilio") @db.Decimal(10, 2)
+  total             Decimal      @db.Decimal(10, 2) // suma de los items + valorDomicilio
+  estado            String       @default("PENDIENTE_REVISION") @db.VarChar(30) // PENDIENTE_REVISION | CONFIRMADO | RECHAZADO
+  motivoRechazo     String?      @map("motivo_rechazo") @db.Text
+  saleId            Int?         @unique @map("sale_id") // se llena solo al confirmar
+  fechaPedido       DateTime     @default(now()) @map("fecha_pedido") @db.Timestamp(0)
+  fechaRevision     DateTime?    @map("fecha_revision") @db.Timestamp(0)
+  revisadoPorUserId Int?         @map("revisado_por_user_id")
+
+  company           Company      @relation(fields: [companyId], references: [id])
+  client            Client       @relation(fields: [clientId], references: [id])
+  sale              Sale?        @relation(fields: [saleId], references: [id])
+  revisadoPor       User?        @relation("PedidosRevisados", fields: [revisadoPorUserId], references: [id])
+  items             PedidoItem[]
+
+  @@map("pedidos")
+  @@index([companyId])
+  @@index([clientId])
+  @@index([revisadoPorUserId])
+}
+
+model PedidoItem {
+  id              Int      @id @default(autoincrement())
+  pedidoId        Int      @map("pedido_id")
+  productId       Int      @map("product_id")
+  cantidad        Int
+  // Snapshot del precio del producto al momento del pedido — nunca se
+  // confía en un precio que mande el visitante público, siempre se recalcula
+  // del Product real (igual que precioUnitario en SaleItem).
+  precioUnitario  Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  subtotal        Decimal  @db.Decimal(10, 2)
+
+  pedido          Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+
+  @@map("pedido_items")
+  @@index([pedidoId])
+  @@index([productId])
 }
 

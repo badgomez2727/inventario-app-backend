@@ -5,11 +5,12 @@
 // ruta que devuelva o modifique algo sensible sin repensarlo dos veces.
 
 const express = require('express');
-const { getCatalogoPublico } = require('../controllers/publicCatalogController');
-const { publicCatalogLimiter } = require('../middlewares/rateLimiter');
+const { getCatalogoPublico, crearPedido } = require('../controllers/publicCatalogController');
+const { publicCatalogLimiter, publicPedidoLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
 router.get('/catalogo/:slug', publicCatalogLimiter, getCatalogoPublico);
+router.post('/catalogo/:slug/pedido', publicPedidoLimiter, crearPedido);
 
 module.exports = router;

@@ -161,9 +161,15 @@ const deleteClient = async (req, res) => {
     // esto, borrar un cliente con historial (incluida una venta pendiente)
     // deja la venta huérfana de cliente en silencio. Igual que con
     // productos, mejor bloquear y sugerir desactivar.
-    const tieneVentas = await prisma.sale.count({ where: { clientId: parseInt(id) } });
+    const [tieneVentas, tienePedidos] = await Promise.all([
+      prisma.sale.count({ where: { clientId: parseInt(id) } }),
+      prisma.pedido.count({ where: { clientId: parseInt(id) } }),
+    ]);
     if (tieneVentas > 0) {
       return res.status(409).json({ error: 'Este cliente tiene ventas registradas; desactívalo en vez de eliminarlo.' });
+    }
+    if (tienePedidos > 0) {
+      return res.status(409).json({ error: 'Este cliente tiene pedidos del catálogo público; desactívalo en vez de eliminarlo.' });
     }
 
     await prisma.client.delete({ where: { id: parseInt(id) } });
@@ -171,7 +177,7 @@ const deleteClient = async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar el cliente:', error);
     if (error.code === 'P2003') {
-      return res.status(409).json({ error: 'No puedes eliminar este cliente porque ya tiene ventas registradas.' });
+      return res.status(409).json({ error: 'No puedes eliminar este cliente porque ya tiene ventas o pedidos registrados.' });
     }
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
