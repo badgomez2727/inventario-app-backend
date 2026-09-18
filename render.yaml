@@ -24,6 +24,12 @@ services:
         sync: false
       - key: EMAIL_FROM
         value: "Vendita <no-reply@mail.tyndallcore.com>" # remitente de los correos (dominio verificado en Resend); igual en staging y producción
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # mismos valores que producción — una sola cuenta de Cloudinary para ambos entornos
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: AI_ORDER_MOCK

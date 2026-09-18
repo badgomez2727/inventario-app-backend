@@ -2,6 +2,16 @@
 
 ## Sin publicar
 
+### Agregado — v1.2 (catálogo público), Bloque 1 parte 1: fotos de producto
+
+- `Product.visibleEnCatalogo` (default `false`): controla qué productos se publican en el catálogo público — nada se muestra solo porque exista en el inventario.
+- Modelo `ProductImage`: varias fotos por producto, con orden explícito (la primera es la portada). Migración puramente aditiva.
+- Fotos subidas directo del navegador a Cloudinary — el backend solo firma la subida (`src/utils/cloudinarySign.js`, sin instalar el SDK oficial, con el algoritmo público de firma sobre `crypto`) y nunca recibe el binario de la imagen. Borrar sí pasa por el backend (requiere el API secret).
+- `POST /api/productos/:id/imagenes/firma`, `POST /api/productos/:id/imagenes`, `DELETE /api/productos/:id/imagenes/:imageId`, `PATCH /api/productos/:id/imagenes/orden` — mismo permiso que editar el producto (cualquier usuario de la compañía, no solo admin). Sin credenciales de Cloudinary configuradas, responde `503` con mensaje claro en vez de fallar feo.
+- `POST`/`PUT /api/productos` ahora aceptan `visibleEnCatalogo`.
+- Variables nuevas: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (documentadas en `.env.example`, `render.yaml` y el README — sección "Fotos de producto").
+- Tests de integración en `tests/product-images.test.js`.
+
 ### Corregido
 
 - `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.

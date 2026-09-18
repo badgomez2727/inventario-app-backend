@@ -24,7 +24,8 @@ const getProducts = async (req, res) => {
         where: { companyId: companyId },
         skip: skip,
         take: limit,
-        orderBy: { nombre: 'asc' }
+        orderBy: { nombre: 'asc' },
+        include: { images: { orderBy: { orden: 'asc' } } },
       }),
       prisma.product.count({ 
         where: { companyId: companyId } 
@@ -46,7 +47,7 @@ const getProducts = async (req, res) => {
 
 // Función para crear un nuevo producto
 const createProduct = async (req, res) => {
-  const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId } = req.body;
+  const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId, visibleEnCatalogo } = req.body;
   const companyId = req.companyId;
 
   // Validación y conversión de tipos
@@ -72,6 +73,7 @@ const createProduct = async (req, res) => {
         categoria,
         imagenUrl,
         supplierId: supplierId ? parseInt(supplierId, 10) : null,
+        visibleEnCatalogo: Boolean(visibleEnCatalogo),
       },
     });
     res.status(201).json(newProduct);
@@ -87,7 +89,7 @@ const createProduct = async (req, res) => {
 // Función para actualizar un producto existente
 const updateProduct = async (req, res) => {
   const { id } = req.params;
-  const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId } = req.body;
+  const { nombre, descripcion, sku, precioCompra, precioVenta, stockActual, unidadMedida, categoria, imagenUrl, supplierId, visibleEnCatalogo } = req.body;
   const companyId = req.companyId;
 
   // --- VALIDACIÓN Y CONVERSIÓN DE TIPOS PARA LA ACTUALIZACIÓN ---
@@ -147,6 +149,7 @@ const updateProduct = async (req, res) => {
           categoria,
           imagenUrl,
           supplierId: newSupplierId,
+          visibleEnCatalogo: visibleEnCatalogo !== undefined ? Boolean(visibleEnCatalogo) : existingProduct.visibleEnCatalogo,
         },
       }),
       ...(cambios.length > 0

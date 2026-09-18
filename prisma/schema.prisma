@@ -83,6 +83,10 @@
       categoria           String?         @db.VarChar(100)
       imagenUrl           String?         @map("imagen_url") @db.VarChar(255)
       activo              Boolean         @default(true)
+      // Catálogo público (v1.2): un producto solo aparece en la landing
+      // pública de la compañía si esto es true. Por defecto false a
+      // propósito — nada del inventario se publica solo porque exista.
+      visibleEnCatalogo   Boolean         @default(false) @map("visible_en_catalogo")
       fechaCreacion       DateTime        @map("fecha_creacion") @default(now()) @db.Timestamp(0)
       fechaActualizacion  DateTime        @map("fecha_actualizacion") @updatedAt @db.Timestamp(0)
       supplierId          Int?            @map("supplier_id")
@@ -90,6 +94,7 @@
       stockMovements      StockMovement[]
       saleItems           SaleItem[]
       changeLogs          ProductChangeLog[]
+      images              ProductImage[]
 
       company             Company         @relation(fields: [companyId], references: [id])
       supplier            Supplier?       @relation(fields: [supplierId], references: [id])
@@ -98,6 +103,25 @@
       @@index([companyId])
       @@unique([companyId, sku])
       @@index([supplierId])
+    }
+
+    // Fotos de un producto para el catálogo público (v1.2). Varias por
+    // producto, con orden explícito (la primera es la foto de portada).
+    // Se suben directo del navegador a Cloudinary (el backend solo firma
+    // la subida, ver src/utils/cloudinarySign.js) — `publicId` es el id
+    // que Cloudinary usa para poder borrarla también allá al eliminarla acá.
+    model ProductImage {
+      id                  Int             @id @default(autoincrement())
+      productId           Int             @map("product_id")
+      url                 String          @db.VarChar(500)
+      publicId            String          @map("public_id") @db.VarChar(255)
+      orden               Int             @default(0)
+      createdAt           DateTime        @default(now()) @map("created_at")
+
+      product             Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+      @@map("product_images")
+      @@index([productId])
     }
 
     // Historial de cambios de un producto (precios, stock manual, etc.).

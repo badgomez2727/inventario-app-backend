@@ -9,6 +9,12 @@ const {
   uploadProductsFromCsv,
   getProductChangeLog,
 } = require('../controllers/productController'); // <-- De aquí se importan las funciones
+const {
+  getSignature,
+  addImage,
+  deleteImage,
+  reorderImages,
+} = require('../controllers/productImageController');
 const { authMiddleware, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { enforceProductLimit } = require('../middlewares/planLimits');
 
@@ -20,6 +26,13 @@ router.post('/', authMiddleware, enforceProductLimit, createProduct);
 router.put('/:id', authMiddleware, updateProduct);
 router.delete('/:id', authMiddleware, deleteProduct); // <-- Esta es la línea 19 que estaba dando el error
 router.get('/:id/history', authMiddleware, getProductChangeLog);
+
+// Fotos de producto (catálogo público v1.2) — mismo permiso que editar el
+// producto (cualquier usuario de la compañía, no solo admin).
+router.post('/:id/imagenes/firma', authMiddleware, getSignature);
+router.post('/:id/imagenes', authMiddleware, addImage);
+router.patch('/:id/imagenes/orden', authMiddleware, reorderImages);
+router.delete('/:id/imagenes/:imageId', authMiddleware, deleteImage);
 
 // NUEVA RUTA para la carga masiva de productos (requiere autenticación y rol de admin)
 router.post('/upload-csv', authMiddleware, authorizeAdmin, uploadProductsFromCsv); 

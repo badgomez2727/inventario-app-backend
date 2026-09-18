@@ -16,7 +16,7 @@
 1. Render Dashboard → **New** → **Web Service** → conecta el repo `inventario-app-backend`.
 2. Rama: `develop`.
 3. Build command: `npm install` — Start command: `npm start`.
-4. En **Environment**, agrega las mismas variables que tiene el servicio de producción (`JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `ANTHROPIC_API_KEY`, `FRONTEND_URL`), **excepto**:
+4. En **Environment**, agrega las mismas variables que tiene el servicio de producción (`JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `ANTHROPIC_API_KEY`, `FRONTEND_URL`), **excepto**:
    - `DATABASE_URL`: la cadena de conexión de la rama **`staging`** de Neon (NO la de producción). Obtenla con:
      ```bash
      neonctl connection-string staging --project-id wispy-water-36773194
@@ -24,6 +24,7 @@
    - `AI_ORDER_MOCK`: pon `true` para no gastar tokens reales de IA en pruebas.
    - `FRONTEND_URL`: la URL estable del preview de Vercel para la rama `develop` (Vercel la genera como `https://vendita-git-develop-badgomez2727s-projects.vercel.app` — confírmala en el dashboard de Vercel del proyecto frontend, pestaña Deployments, el deploy de la rama `develop`).
    - `EMAIL_FROM` sí puede quedar igual que en producción (no es sensible ni depende del entorno): `Vendita <no-reply@mail.tyndallcore.com>`. Ese dominio (`mail.tyndallcore.com`) está verificado en Resend (SPF, DKIM, DMARC). Si no se define esta variable, el código usa ese mismo valor por defecto.
+   - `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET`: copia los mismos valores de producción — es la misma cuenta de Cloudinary para ambos entornos (las fotos de staging quedan en una carpeta separada por compañía/producto, no chocan con las de producción). Ver la sección "Fotos de producto" más abajo.
 5. Nombra el servicio `inventario-backend-staging` (o el que prefieras, no afecta nada del código).
 
 **Opción B — Blueprint (`render.yaml`):** este repo incluye un `render.yaml` de referencia. Render Dashboard → New → Blueprint → selecciona este repo → rama `develop`. Te va a pedir los valores de las variables marcadas `sync: false`.
@@ -53,6 +54,17 @@ Los correos transaccionales (hoy, solo el de recuperación de contraseña) se en
 
 - `RESEND_API_KEY`: API key de la cuenta de Resend. Ya configurada en producción y staging.
 - `EMAIL_FROM`: remitente de los correos, en formato `"Nombre <correo@dominio>"` — por ejemplo `Vendita <no-reply@mail.tyndallcore.com>`. El dominio debe estar verificado en Resend (SPF, DKIM y DMARC); `mail.tyndallcore.com` ya lo está. Si la variable no está definida, el código usa ese mismo valor por defecto, así que en la práctica solo hace falta configurarla si algún día se quiere usar otro remitente.
+
+## Fotos de producto (Cloudinary)
+
+Las fotos de producto (para el catálogo público, v1.2) se suben directo del navegador a [Cloudinary](https://cloudinary.com) — el backend solo firma la subida (`src/utils/cloudinarySign.js`), nunca recibe el binario de la imagen. Borrar una foto sí pasa por el backend, porque requiere el API secret.
+
+**Configuración (una sola vez):**
+1. Crea una cuenta gratis en Cloudinary (el plan free alcanza de sobra para empezar: ~25GB/mes entre almacenamiento y banda ancha).
+2. En el Dashboard, copia **Cloud name**, **API Key** y **API Secret** (Settings → Access Keys).
+3. Ponlos en `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` en Render (producción y staging, mismo valor en ambas).
+
+No hace falta crear ningún "upload preset" en el dashboard de Cloudinary — al usar subida firmada (no "unsigned"), toda la configuración vive en el backend. Sin estas variables configuradas, subir o borrar una foto responde `503` con un mensaje claro en vez de fallar de forma confusa.
 
 ## Tests
 
