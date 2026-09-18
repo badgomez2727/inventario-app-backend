@@ -1,6 +1,15 @@
 # Changelog
 
-## Sin publicar
+## 1.3.0
+
+### En palabras simples (para contarle a los clientes)
+
+- **Encuentra a cualquier cliente en segundos.** Busca por nombre o por celular en Clientes y en Cartera, sin importar mayúsculas, tildes ni cómo esté escrito el número (con o sin +57, con espacios o guiones).
+- **La ficha completa de cada cliente**, con un clic: cuánto debe, cuánto ha comprado en total, sus ventas pendientes con abonos y antigüedad, y su historial de ventas pagadas. Desde ahí mismo abres una venta y registras un abono, sin ir al historial.
+- **Estado de cuenta en PDF**, listo para entregar o enviar: datos de tu negocio, del cliente, fecha, ventas pendientes con sus abonos y el saldo total.
+- **Recordatorio de cobro por WhatsApp**, con un mensaje corto y amable ya escrito (saldo y detalle de lo pendiente). Se abre en WhatsApp para que lo revises y lo ajustes antes de enviarlo.
+- **Exporta tu cartera completa** a un archivo que abre Excel, con cliente, celular, saldo, ventas pendientes y antigüedad de la deuda más vieja; respeta lo que hayas escrito en el buscador.
+- **Tu catálogo público ahora tiene buscador y categorías.** Tus clientes encuentran un producto escribiendo su nombre (aunque lo escriban en plural o sin tilde) o filtrando por categoría; los productos sin categoría aparecen en "Otros".
 
 ### Agregado — v1.3, Parte 1: buscador y detalle del cliente
 
