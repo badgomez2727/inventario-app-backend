@@ -1,9 +1,13 @@
 // backend/src/controllers/clienteController.js
 
 const { PrismaClient } = require('@prisma/client');
+const PDFDocument = require('pdfkit');
 const { normalizePhoneCO } = require('../utils/phone');
 const { normalizeText, onlyDigits } = require('../utils/text');
 const prisma = new PrismaClient();
+
+const formatCOP = (valor) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(valor));
 
 const TELEFONO_INVALIDO_MSG = 'Número de celular inválido. Usa un celular colombiano de 10 dígitos (ej. 3001234567).';
 
@@ -265,50 +269,111 @@ const resumenVenta = (venta) => {
 // Cartera: para cada cliente de la compañía con al menos una venta
 // PENDIENTE o PARCIAL activa (no anulada), su saldo adeudado, cuántas
 // ventas pendientes tiene, y la antigüedad (en días) de la más vieja —
-// justo lo que hace falta para decidir a quién cobrarle primero.
+// justo lo que hace falta para decidir a quién cobrarle primero. Extraído
+// del controlador HTTP para que GET /cartera y el export a CSV usen
+// exactamente el mismo cálculo.
+const computeCartera = async (companyId) => {
+  const ventasPendientes = await prisma.sale.findMany({
+    where: {
+      companyId,
+      estado: { not: 'ANULADA' },
+      estadoPago: { in: ['PENDIENTE', 'PARCIAL'] },
+      clientId: { not: null },
+    },
+    include: {
+      client: { select: { id: true, nombre: true, telefono: true } },
+      payments: { where: { anulado: false }, select: { monto: true } },
+    },
+    orderBy: { fechaVenta: 'asc' },
+  });
+
+  const porCliente = new Map();
+
+  for (const venta of ventasPendientes) {
+    const resumen = resumenVenta(venta);
+
+    const entry = porCliente.get(venta.client.id) || {
+      clienteId: venta.client.id,
+      nombre: venta.client.nombre,
+      telefono: venta.client.telefono,
+      totalAdeudado: 0,
+      ventasPendientes: [],
+    };
+
+    entry.totalAdeudado += resumen.saldo;
+    entry.ventasPendientes.push(resumen);
+
+    porCliente.set(venta.client.id, entry);
+  }
+
+  return Array.from(porCliente.values()).sort((a, b) => b.totalAdeudado - a.totalAdeudado);
+};
+
+const antiguedadMaxima = (entry) =>
+  entry.ventasPendientes.reduce((max, v) => Math.max(max, v.diasAntiguedad), 0);
+
 const getCartera = async (req, res) => {
-  const companyId = req.companyId;
-
   try {
-    const ventasPendientes = await prisma.sale.findMany({
-      where: {
-        companyId,
-        estado: { not: 'ANULADA' },
-        estadoPago: { in: ['PENDIENTE', 'PARCIAL'] },
-        clientId: { not: null },
-      },
-      include: {
-        client: { select: { id: true, nombre: true, telefono: true } },
-        payments: { where: { anulado: false }, select: { monto: true } },
-      },
-      orderBy: { fechaVenta: 'asc' },
-    });
-
-    const porCliente = new Map();
-
-    for (const venta of ventasPendientes) {
-      const resumen = resumenVenta(venta);
-
-      const entry = porCliente.get(venta.client.id) || {
-        clienteId: venta.client.id,
-        nombre: venta.client.nombre,
-        telefono: venta.client.telefono,
-        totalAdeudado: 0,
-        ventasPendientes: [],
-      };
-
-      entry.totalAdeudado += resumen.saldo;
-      entry.ventasPendientes.push(resumen);
-
-      porCliente.set(venta.client.id, entry);
-    }
-
-    const cartera = Array.from(porCliente.values()).sort((a, b) => b.totalAdeudado - a.totalAdeudado);
-
+    const cartera = await computeCartera(req.companyId);
     res.json(cartera);
   } catch (error) {
     console.error('Error al calcular la cartera:', error);
     res.status(500).json({ error: 'Error interno del servidor al calcular la cartera.' });
+  }
+};
+
+// Escapa un valor para una celda CSV: solo lo envuelve en comillas si
+// contiene una coma, comilla o salto de línea (si no, se deja tal cual,
+// como cualquier CSV bien formado).
+const csvField = (value) => {
+  const str = String(value ?? '');
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+};
+
+// Exporta la cartera completa (o filtrada por el mismo buscador de
+// clientes) a CSV — cliente, celular, saldo, cuántas ventas pendientes y
+// la antigüedad de la deuda más vieja. Se genera en memoria sin ninguna
+// librería nueva: para el volumen de clientes con saldo de un negocio
+// chico, un CSV construido a mano alcanza y evita meter una dependencia
+// de Excel solo para esto.
+const exportCartera = async (req, res) => {
+  const companyId = req.companyId;
+  const search = (req.query.search || '').trim();
+
+  try {
+    let cartera = await computeCartera(companyId);
+
+    if (search) {
+      const searchNorm = normalizeText(search);
+      const searchDigits = onlyDigits(search);
+      cartera = cartera.filter((c) => {
+        const nombreMatch = normalizeText(c.nombre).includes(searchNorm);
+        const telefonoMatch = searchDigits.length > 0 && onlyDigits(c.telefono).includes(searchDigits);
+        return nombreMatch || telefonoMatch;
+      });
+    }
+
+    const encabezados = ['Cliente', 'Celular', 'Saldo', 'Ventas pendientes', 'Antigüedad más vieja (días)'];
+    const filas = cartera.map((c) =>
+      [
+        csvField(c.nombre),
+        csvField(c.telefono || ''),
+        csvField(c.totalAdeudado),
+        csvField(c.ventasPendientes.length),
+        csvField(antiguedadMaxima(c)),
+      ].join(',')
+    );
+
+    // BOM al inicio: sin esto, Excel abre un CSV en UTF-8 con tildes/ñ mal
+    // decodificadas (las interpreta como Latin-1).
+    const csv = '﻿' + [encabezados.join(','), ...filas].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=cartera.csv');
+    res.send(csv);
+  } catch (error) {
+    console.error('Error al exportar la cartera:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
 
@@ -371,6 +436,98 @@ const getEstadoCuentaCliente = async (req, res) => {
   }
 };
 
+// PDF del estado de cuenta de un cliente (v1.3): datos del negocio, datos
+// del cliente, fecha de emisión, la tabla de ventas pendientes/parciales
+// (excluye pagadas y anuladas — es un cobro, no un historial) y el saldo
+// total al final. Reutiliza el mismo estilo y librería (pdfkit) que el
+// recibo de venta en receiptController.js.
+const generateEstadoCuentaPdf = async (req, res) => {
+  const companyId = req.companyId;
+  const clientId = parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(clientId)) {
+    return res.status(400).json({ error: 'Cliente inválido.' });
+  }
+
+  try {
+    const [company, cliente] = await Promise.all([
+      prisma.company.findUnique({ where: { id: companyId } }),
+      prisma.client.findFirst({ where: { id: clientId, companyId } }),
+    ]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado o no autorizado.' });
+    }
+
+    const ventas = await prisma.sale.findMany({
+      where: { companyId, clientId, estado: { not: 'ANULADA' }, estadoPago: { in: ['PENDIENTE', 'PARCIAL'] } },
+      include: { payments: { where: { anulado: false }, select: { monto: true } } },
+      orderBy: { fechaVenta: 'asc' },
+    });
+    const ventasPendientes = ventas.map(resumenVenta);
+    const saldoTotal = ventasPendientes.reduce((sum, v) => sum + v.saldo, 0);
+
+    const doc = new PDFDocument({ margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=estado_cuenta_cliente_${clientId}.pdf`);
+    doc.pipe(res);
+
+    doc.fontSize(20).text(company.nombre.toUpperCase(), { align: 'center' });
+    doc.fontSize(10).text(company.direccion || '', { align: 'center' });
+    doc.text(`Tel: ${company.telefono || ''} | Email: ${company.emailContacto || ''}`, { align: 'center' });
+    doc.moveDown();
+
+    doc.fontSize(16).text('ESTADO DE CUENTA', { align: 'center' });
+    doc.fontSize(10).text(`Fecha de emisión: ${new Date().toLocaleDateString('es-CO')}`, { align: 'center' });
+    doc.moveDown();
+
+    doc.fontSize(12).text(`Cliente: ${cliente.nombre}`);
+    doc.text(`Celular: ${cliente.telefono || 'N/A'}`);
+    doc.moveDown();
+
+    if (ventasPendientes.length === 0) {
+      doc.fontSize(12).text('Este cliente no tiene ventas pendientes ni parciales.');
+    } else {
+      const col1 = 50, col2 = 120, col3 = 230, col4 = 330, col5 = 430, col6 = 500;
+      const tableTop = doc.y;
+
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text('Venta', col1, tableTop, { width: 60 });
+      doc.text('Fecha', col2, tableTop, { width: 100 });
+      doc.text('Total', col3, tableTop, { width: 90 });
+      doc.text('Abonado', col4, tableTop, { width: 90 });
+      doc.text('Saldo', col5, tableTop, { width: 60 });
+      doc.text('Días', col6, tableTop, { width: 40 });
+      doc.font('Helvetica');
+      doc.moveDown();
+
+      let yPosition = doc.y;
+      ventasPendientes.forEach((v) => {
+        doc.fontSize(9);
+        doc.text(`#${v.saleId}`, col1, yPosition, { width: 60 });
+        doc.text(new Date(v.fecha).toLocaleDateString('es-CO'), col2, yPosition, { width: 100 });
+        doc.text(formatCOP(v.total), col3, yPosition, { width: 90 });
+        doc.text(formatCOP(v.pagado), col4, yPosition, { width: 90 });
+        doc.text(formatCOP(v.saldo), col5, yPosition, { width: 60 });
+        doc.text(`${v.diasAntiguedad}`, col6, yPosition, { width: 40 });
+        yPosition += 20;
+        if (yPosition > 700) {
+          doc.addPage();
+          yPosition = 50;
+        }
+      });
+      doc.moveDown();
+
+      doc.fontSize(14).font('Helvetica-Bold');
+      doc.text(`SALDO TOTAL: ${formatCOP(saldoTotal)}`, { align: 'right' });
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error('Error al generar el estado de cuenta PDF:', error);
+    res.status(500).json({ error: 'Error al generar el estado de cuenta.' });
+  }
+};
+
 module.exports = {
   listClients,
   createClient,
@@ -379,6 +536,8 @@ module.exports = {
   deleteClient,
   findOrCreateCliente,
   getCartera,
+  exportCartera,
   getEstadoCuentaCliente,
+  generateEstadoCuentaPdf,
   TELEFONO_INVALIDO_MSG,
 };

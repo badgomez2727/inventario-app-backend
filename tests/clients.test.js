@@ -388,3 +388,125 @@ describe('GET /api/clientes/:id/estado-cuenta', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('GET /api/clientes/:id/estado-cuenta/pdf', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('genera el PDF con las ventas pendientes/parciales, excluyendo pagadas y anuladas', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id, { telefono: '+573001112222' });
+    const token = signToken(admin);
+
+    await createSale(company.id, admin.id, { clientId: client.id, total: 10000, estadoPago: 'PENDIENTE' });
+    await createSale(company.id, admin.id, { clientId: client.id, total: 5000, estadoPago: 'PAGADA' });
+    await createSale(company.id, admin.id, { clientId: client.id, total: 9999, estado: 'ANULADA', estadoPago: 'PENDIENTE' });
+
+    const res = await request(app)
+      .get(`/api/clientes/${client.id}/estado-cuenta/pdf`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['content-disposition']).toMatch(/estado_cuenta_cliente_/);
+  });
+
+  test('un cliente sin ventas pendientes igual genera el PDF (sin tabla, saldo cero)', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .get(`/api/clientes/${client.id}/estado-cuenta/pdf`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+  });
+
+  test('no se puede generar el estado de cuenta de un cliente de otra compañía', async () => {
+    const companyA = await createCompany();
+    const companyB = await createCompany();
+    const adminA = await createUser(companyA.id, 'admin_compania');
+    const clientB = await createClient(companyB.id);
+    const token = signToken(adminA);
+
+    const res = await request(app)
+      .get(`/api/clientes/${clientB.id}/estado-cuenta/pdf`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/clientes/cartera/export (CSV)', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('exporta cliente, celular, saldo, ventas pendientes y antigüedad más vieja', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id, { nombre: 'Cliente Exportable', telefono: '+573001112222' });
+    const token = signToken(admin);
+
+    const haceDiezDias = new Date(Date.now() - 10 * 86400000);
+    await prisma.sale.create({
+      data: {
+        companyId: company.id, userId: admin.id, clientId: client.id,
+        total: 10000, estado: 'Completada', estadoPago: 'PENDIENTE', fechaVenta: haceDiezDias,
+      },
+    });
+
+    const res = await request(app)
+      .get('/api/clientes/cartera/export')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.text).toContain('Cliente,Celular,Saldo,Ventas pendientes');
+    expect(res.text).toContain('Cliente Exportable');
+    expect(res.text).toContain('+573001112222');
+    expect(res.text).toContain('10000');
+  });
+
+  test('respeta el filtro de búsqueda: solo exporta clientes que coinciden', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const clienteA = await createClient(company.id, { nombre: 'María Coincide' });
+    const clienteB = await createClient(company.id, { nombre: 'Otro Cliente' });
+    const token = signToken(admin);
+
+    await createSale(company.id, admin.id, { clientId: clienteA.id, total: 5000, estadoPago: 'PENDIENTE' });
+    await createSale(company.id, admin.id, { clientId: clienteB.id, total: 7000, estadoPago: 'PENDIENTE' });
+
+    const res = await request(app)
+      .get('/api/clientes/cartera/export?search=maria')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('María Coincide');
+    expect(res.text).not.toContain('Otro Cliente');
+  });
+
+  test('no cruza compañías', async () => {
+    const companyA = await createCompany();
+    const companyB = await createCompany();
+    const adminA = await createUser(companyA.id, 'admin_compania');
+    const userB = await createUser(companyB.id, 'admin_compania');
+    const clientB = await createClient(companyB.id, { nombre: 'Cliente De Otra Empresa' });
+    const tokenA = signToken(adminA);
+
+    await createSale(companyB.id, userB.id, { clientId: clientB.id, total: 5000, estadoPago: 'PENDIENTE' });
+
+    const res = await request(app)
+      .get('/api/clientes/cartera/export')
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Cliente De Otra Empresa');
+  });
+});

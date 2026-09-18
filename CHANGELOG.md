@@ -9,6 +9,13 @@
 - `GET /api/sales/:id`: detalle de una venta puntual, para poder abrirla desde el nuevo panel del cliente sin pasar por el historial general.
 - Tests de integración en `tests/clients.test.js` y `tests/sales.test.js`.
 
+### Agregado — v1.3, Parte 2: exportar y compartir el estado de cuenta
+
+- `GET /api/clientes/:id/estado-cuenta/pdf`: PDF con los datos del negocio, del cliente, la fecha de emisión, la tabla de ventas pendientes/parciales (fecha, total, abonado, saldo, antigüedad) y el saldo total — mismo estilo y librería (`pdfkit`) que el recibo de venta existente. Excluye pagadas y anuladas.
+- `GET /api/clientes/cartera/export`: exporta la cartera a CSV (cliente, celular, saldo, cantidad de ventas pendientes, antigüedad de la deuda más vieja), respetando el mismo `?search=` del buscador de clientes. Sin librería nueva — se arma el CSV a mano, con BOM UTF-8 para que Excel muestre bien tildes/ñ.
+- `computeCartera` extraído de `getCartera` para que el cálculo de la cartera sea exactamente el mismo en la pantalla y en el export.
+- Tests de integración: cálculo del PDF (incluye/excluye lo correcto), y export de CSV respetando el filtro de búsqueda y el aislamiento por compañía.
+
 ## 1.2.0
 
 ### En palabras simples (para contarle a los clientes)
