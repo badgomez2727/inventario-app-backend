@@ -48,9 +48,23 @@ const aiOrderLimiter = rateLimit({
   message: { error: 'Alcanzaste el límite de pedidos generados con IA por esta hora. Intenta de nuevo más tarde.' },
 });
 
+// Límite para el catálogo público (GET /public/catalogo/:slug): sin login
+// no hay una identidad natural por la que limitar, así que es por IP. Es
+// una vitrina real para clientes reales navegando (varias vistas por
+// visita), no una acción puntual — el techo es generoso, pensado para
+// frenar scraping/abuso, no el uso normal.
+const publicCatalogLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo en un momento.' },
+});
+
 module.exports = {
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
   aiOrderLimiter,
+  publicCatalogLimiter,
 };

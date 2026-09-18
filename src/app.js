@@ -18,6 +18,7 @@ const receiptRoutes = require('./routes/receiptRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const aiOrderRoutes = require('./routes/aiOrderRoutes');
 const companySettingsRoutes = require('./routes/companySettingsRoutes');
+const publicRoutes = require('./routes/publicRoutes');
 
 const prisma = new PrismaClient();
 const app = express(); // La instancia 'app' debe ser declarada antes de usarse
@@ -69,7 +70,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Para parsear 
 const { authMiddleware } = require('./middlewares/authMiddleware'); 
 
 // --- Rutas de Autenticación (generalmente no protegidas por authMiddleware si manejan login/registro) ---
-app.use('/auth', authRoutes); 
+app.use('/auth', authRoutes);
+
+// --- Catálogo público (v1.2): sin autenticación, ver publicRoutes.js ---
+app.use('/public', publicRoutes);
 
 // --- Ruta de Prueba (accesible públicamente) ---
 app.get('/', (req, res) => {

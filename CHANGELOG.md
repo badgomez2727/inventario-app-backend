@@ -20,6 +20,12 @@
 - `POST /api/mi-compania/portada/firma`: firma de subida para la foto de portada del catálogo, mismo mecanismo que las fotos de producto (Parte 1).
 - Tests de integración en `tests/company-settings.test.js`.
 
+### Agregado — v1.2, Bloque 1 parte 3: catálogo público (lectura)
+
+- `GET /public/catalogo/:slug` (sin autenticación, montada antes de `authMiddleware` igual que `/auth`): devuelve la compañía (nombre, descripción, portada, WhatsApp, domicilio) y sus productos con `visibleEnCatalogo=true` y `activo=true`. Nunca expone `precioCompra` ni `stockActual` — solo `disponible: stockActual > 0`. Un slug inexistente y una compañía con el catálogo desactivado (o la compañía misma inactiva) responden el mismo `404` genérico, para no distinguir esos casos.
+- `publicCatalogLimiter`: 60 peticiones/minuto por IP (sin login no hay una identidad más fina por la que limitar).
+- Tests de integración en `tests/public-catalog.test.js`.
+
 ### Corregido
 
 - `POST /api/sales` y `PATCH /api/sales/:id/cliente` ya validaban que un `clientId` existiera y perteneciera a la compañía, pero no que el cliente estuviera activo — un cliente desactivado (o borrado, si nunca tuvo ventas) en otra pestaña seguía siendo aceptado si el selector del POS quedó desactualizado. Ahora ambos rechazan (400, "Este cliente está desactivado...") un `clientId` inactivo.
