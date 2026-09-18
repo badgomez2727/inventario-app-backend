@@ -16,6 +16,10 @@
 - `computeCartera` extraído de `getCartera` para que el cálculo de la cartera sea exactamente el mismo en la pantalla y en el export.
 - Tests de integración: cálculo del PDF (incluye/excluye lo correcto), y export de CSV respetando el filtro de búsqueda y el aislamiento por compañía.
 
+### Documentado — v1.3, Bloque 2: catálogo público
+
+- README: nota sobre el límite conocido del endpoint público del catálogo (no pagina; el buscador/filtro del catálogo son del lado del cliente). Sin cambios de código en el backend.
+
 ## 1.2.0
 
 ### En palabras simples (para contarle a los clientes)

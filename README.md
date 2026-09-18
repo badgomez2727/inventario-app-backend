@@ -66,6 +66,10 @@ Las fotos de producto (para el catálogo público, v1.2) se suben directo del na
 
 No hace falta crear ningún "upload preset" en el dashboard de Cloudinary — al usar subida firmada (no "unsigned"), toda la configuración vive en el backend. Sin estas variables configuradas, subir o borrar una foto responde `503` con un mensaje claro en vez de fallar de forma confusa.
 
+## Catálogo público
+
+`GET /public/catalogo/:slug` (sin autenticación) devuelve **todos** los productos publicados de una compañía en una sola respuesta, sin paginar. El buscador y el filtro por categoría del catálogo (`frontend/src/pages/PublicCatalogPage.jsx`) se resuelven enteramente del lado del cliente sobre esa lista ya cargada — funciona bien para el catálogo de un negocio chico, pero **es una limitación conocida**: con catálogos de varios cientos de productos, esa primera carga se vuelve pesada y lenta antes incluso de llegar a buscar algo. Si eso llega a pasar, la solución es paginar `GET /public/catalogo/:slug` y mover la búsqueda/filtro al backend (mismo patrón que ya usa `GET /api/clientes?search=`), no seguir escalando el filtrado en el navegador.
+
 ## Tests
 
 Los tests de integración (Jest + Supertest) corren contra una base de datos **local, separada de todo lo demás** — nunca contra staging ni contra producción. Viven en `tests/`.
