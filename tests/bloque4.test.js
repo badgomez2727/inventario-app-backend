@@ -8,7 +8,6 @@ const {
   createProduct,
   createClient,
   createSupplier,
-  createSale,
   signToken,
 } = require('./helpers/factory');
 
@@ -222,12 +221,16 @@ describe('Borrados con historial: P2003 capturado con mensaje claro', () => {
   });
 
   // Nota: a diferencia de productos (FK RESTRICT), el esquema actual define
-  // productos.supplier_id y sales.client_id como ON DELETE SET NULL — borrar
-  // un proveedor o cliente con historial asociado no dispara P2003 hoy (el
-  // dato queda huérfano en vez de bloquear el borrado). El catch de P2003 se
-  // agregó igual en ambos controladores por consistencia y como red de
-  // seguridad ante un futuro cambio de esquema; estos tests documentan el
-  // comportamiento real actual.
+  // productos.supplier_id como ON DELETE SET NULL — borrar un proveedor con
+  // historial no dispara P2003 (el dato queda huérfano en vez de bloquear
+  // el borrado). El catch de P2003 se dejó igual en el controlador por
+  // consistencia y como red de seguridad ante un futuro cambio de esquema;
+  // este test documenta el comportamiento real actual.
+  //
+  // Clientes es distinto: aunque sales.client_id también es SET NULL a
+  // nivel de esquema (sin tocar), deleteClient ahora valida a mano si el
+  // cliente tiene ventas y rechaza el borrado antes de llegar a la base de
+  // datos (ver tests/clients.test.js) — no hace falta un P2003 para eso.
   test('borrar un proveedor con productos asociados los deja sin proveedor (no falla)', async () => {
     const company = await createCompany();
     const admin = await createUser(company.id, 'admin_compania');
@@ -245,20 +248,4 @@ describe('Borrados con historial: P2003 capturado con mensaje claro', () => {
     expect(productoActualizado.supplierId).toBeNull();
   });
 
-  test('borrar un cliente con ventas asociadas las deja sin cliente (no falla)', async () => {
-    const company = await createCompany();
-    const admin = await createUser(company.id, 'admin_compania');
-    const client = await createClient(company.id);
-    const sale = await createSale(company.id, admin.id, { clientId: client.id });
-    const token = signToken(admin);
-
-    const res = await request(app)
-      .delete(`/api/clientes/${client.id}`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-
-    const ventaActualizada = await prisma.sale.findUnique({ where: { id: sale.id } });
-    expect(ventaActualizada.clientId).toBeNull();
-  });
 });

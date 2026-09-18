@@ -156,6 +156,16 @@ const deleteClient = async (req, res) => {
       return res.status(404).json({ error: 'Cliente no encontrado o no autorizado.' });
     }
 
+    // sales.client_id es ON DELETE SET NULL a nivel de base de datos (el
+    // borrado nunca falla por P2003), así que la validación va acá: sin
+    // esto, borrar un cliente con historial (incluida una venta pendiente)
+    // deja la venta huérfana de cliente en silencio. Igual que con
+    // productos, mejor bloquear y sugerir desactivar.
+    const tieneVentas = await prisma.sale.count({ where: { clientId: parseInt(id) } });
+    if (tieneVentas > 0) {
+      return res.status(409).json({ error: 'Este cliente tiene ventas registradas; desactívalo en vez de eliminarlo.' });
+    }
+
     await prisma.client.delete({ where: { id: parseInt(id) } });
     res.status(200).json({ message: 'Cliente eliminado con éxito.' });
   } catch (error) {

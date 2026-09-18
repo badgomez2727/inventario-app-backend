@@ -14,13 +14,11 @@
 - Migración `add_client_activo_and_phone_index`: agrega `activo` (default `true`) a `clients` y un índice `(companyId, telefono)`. Puramente aditiva.
 - Tests de integración (`tests/sale-credit.test.js`, `tests/clients.test.js`): venta pendiente/parcial sin cliente rechazada, venta pagada con cliente opcional, creación y reutilización de cliente por celular desde la venta, celular inválido rechazado, asignar cliente a una venta existente (incluye rechazo entre compañías y sobre ventas anuladas), activar/desactivar cliente, y cálculo de cartera (saldo, antigüedad, exclusión de ventas pagadas/anuladas).
 
+- `DELETE /api/clientes/:id` ahora rechaza (409, "Este cliente tiene ventas registradas; desactívalo en vez de eliminarlo") si el cliente tiene al menos una venta asociada (de cualquier estado, incluidas las anuladas). Antes esto no fallaba nunca (`sales.client_id` es `ON DELETE SET NULL` a nivel de esquema, sin tocar) y el borrado dejaba la venta huérfana de cliente en silencio — con la cartera ya siendo una función real, ese hueco importaba. La validación es a nivel de aplicación, no se tocó el esquema.
+
 ### Cambiado
 
 - `createSale` ahora responde con el código de error correcto según la causa (400 para "stock insuficiente" o "producto no encontrado", antes siempre 500) en vez de un 500 genérico para cualquier error de validación dentro de la transacción.
-
-### Nota para revisar
-
-- `deleteClient` (borrado físico) hoy **no** está bloqueado por historial: `sales.client_id` es `ON DELETE SET NULL`, así que se puede borrar un cliente con ventas (incluida una pendiente) y la venta queda huérfana de cliente, sin fallar. Con la cartera ya siendo una función real, esto es un hueco: recomiendo preferir "desactivar" sobre "eliminar" para cualquier cliente con historial mientras no se decida si vale la pena cambiar esa relación a `RESTRICT` (cambio de esquema más grande, no lo hice sin confirmar).
 
 ## 1.0.1
 

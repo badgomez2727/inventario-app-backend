@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { prisma, createCompany, createUser, createClient, signToken } = require('./helpers/factory');
+const { prisma, createCompany, createUser, createClient, createSale, signToken } = require('./helpers/factory');
 
 describe('Normalización de celular en CRUD de clientes', () => {
   afterAll(async () => {
@@ -90,6 +90,60 @@ describe('PATCH /api/clientes/:id/activo (activar/desactivar cliente)', () => {
       .send({ activo: false });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/clientes/:id (borrado bloqueado si tiene ventas)', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test('no se puede eliminar un cliente con ventas registradas', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    await createSale(company.id, admin.id, { clientId: client.id });
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .delete(`/api/clientes/${client.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/desactívalo/i);
+
+    const clienteSigueExistiendo = await prisma.client.findUnique({ where: { id: client.id } });
+    expect(clienteSigueExistiendo).not.toBeNull();
+  });
+
+  test('un cliente sin ventas sí se puede eliminar', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .delete(`/api/clientes/${client.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+
+    const clienteEliminado = await prisma.client.findUnique({ where: { id: client.id } });
+    expect(clienteEliminado).toBeNull();
+  });
+
+  test('el bloqueo aplica aunque la única venta esté anulada (sigue siendo historial)', async () => {
+    const company = await createCompany();
+    const admin = await createUser(company.id, 'admin_compania');
+    const client = await createClient(company.id);
+    await createSale(company.id, admin.id, { clientId: client.id, estado: 'ANULADA', estadoPago: 'PENDIENTE' });
+    const token = signToken(admin);
+
+    const res = await request(app)
+      .delete(`/api/clientes/${client.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(409);
   });
 });
 
