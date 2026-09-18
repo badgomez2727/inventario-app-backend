@@ -58,7 +58,11 @@ describe('POST /api/sales (CRÍTICO-3: condición de carrera en el stock)', () =
     const [resultado1, resultado2] = await Promise.all([hacerVenta(), hacerVenta()]);
 
     const statuses = [resultado1.status, resultado2.status].sort();
-    expect(statuses).toEqual([201, 500]); // una se completa (201), la otra revienta la transacción (500) con "stock insuficiente"
+    // Una se completa (201); la otra choca con "stock insuficiente", que
+    // ahora responde 400 (antes cualquier error de la transacción caía a
+    // 500 genérico — "stock insuficiente" es un error de validación, no un
+    // fallo interno del servidor).
+    expect(statuses).toEqual([201, 400]);
 
     const productoFinal = await prisma.product.findUnique({ where: { id: product.id } });
     expect(productoFinal.stockActual).toBe(0); // nunca negativo

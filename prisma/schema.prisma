@@ -196,9 +196,19 @@
       id                  Int             @id @default(autoincrement())
       nombre              String
       email               String?
+      // Se guarda ya normalizado a formato internacional colombiano
+      // (+57XXXXXXXXXX) por normalizePhoneCO (ver src/utils/phone.js) — así
+      // sirve como identificador para reutilizar el cliente en vez de
+      // duplicarlo cuando se crea uno nuevo desde la venta.
       telefono            String?
       direccion           String?
       companyId           Int
+      // Desactivar (no borrar) es la forma preferida de "dar de baja" a un
+      // cliente que ya tiene historial de ventas — el borrado físico sigue
+      // existiendo (deleteClient) pero hoy no está bloqueado por historial
+      // (sales.clientId es ON DELETE SET NULL), así que puede perder el
+      // rastro de a quién le vendiste. Ver CHANGELOG para el detalle.
+      activo              Boolean         @default(true)
       company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
       sales               Sale[]          // Relación inversa para ver las ventas de un cliente
       createdAt           DateTime        @default(now())
@@ -206,6 +216,11 @@
 
       @@map("clients") // Asegúrate de que esta tabla se mapee correctamente
       @@unique([nombre, companyId]) // Un cliente con el mismo nombre y compañía debe ser único
+      // Sin @@unique a propósito: datos existentes pueden tener teléfonos
+      // vacíos/duplicados/sin normalizar, así que la reutilización por
+      // teléfono se resuelve a nivel de aplicación (findOrCreateCliente en
+      // clienteController.js), no con una constraint de base de datos.
+      @@index([companyId, telefono])
     }
 
     model Supplier {

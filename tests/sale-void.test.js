@@ -4,7 +4,9 @@ const { prisma, createCompany, createUser, createProduct, signToken } = require(
 
 // Crea una venta real (vía POST /api/sales) para tener saleItems y un
 // StockMovement de salida, igual que en producción — anular exige que el
-// stock efectivamente vuelva a subir.
+// stock efectivamente vuelva a subir. estadoPago PAGADA a propósito: estos
+// tests no verifican nada sobre el estado de pago, y desde el Bloque B una
+// venta PENDIENTE/PARCIAL exige cliente (ver tests/sale-credit.test.js).
 async function crearVentaConItem(app, token, product, cantidad = 2) {
   const res = await request(app)
     .post('/api/sales')
@@ -12,7 +14,7 @@ async function crearVentaConItem(app, token, product, cantidad = 2) {
     .send({
       items: [{ productId: product.id, cantidad }],
       total: cantidad * Number(product.precioVenta),
-      estadoPago: 'PENDIENTE',
+      estadoPago: 'PAGADA',
     });
   return res.body.sale;
 }

@@ -1,5 +1,27 @@
 # Changelog
 
+## Sin publicar
+
+### Agregado
+
+- Cliente obligatorio en ventas a crédito: `POST /api/sales` rechaza (400) una venta `PENDIENTE` o `PARCIAL` sin `clientId` ni `clienteNuevo`. Las ventas `PAGADA` siguen con cliente opcional.
+- `clienteNuevo: { nombre, telefono }` en `POST /api/sales` crea (o reutiliza, si ya existe un cliente con ese celular en la compañía) un cliente dentro de la misma transacción de la venta — no hace falta salir del formulario de venta para crear el cliente primero.
+- El celular se normaliza a formato internacional colombiano (`+57XXXXXXXXXX`, ver `src/utils/phone.js`) en creación/edición de clientes y en `clienteNuevo`; es el identificador para reutilizar un cliente en vez de duplicarlo. No hay constraint de base de datos sobre el celular (a propósito, ver nota en `schema.prisma`) — la reutilización es a nivel de aplicación.
+- `PATCH /api/sales/:id/cliente`: asigna o cambia el cliente de una venta existente (acepta `clientId` o `clienteNuevo`), pensado para ventas pendientes que quedaron sin cliente antes de esta validación. No requiere admin.
+- CRUD de clientes completo: `PATCH /api/clientes/:id/activo` activa/desactiva un cliente (no borra su historial). El borrado físico (`DELETE`) sigue existiendo.
+- `GET /api/clientes/cartera`: para cada cliente con al menos una venta `PENDIENTE`/`PARCIAL` activa, su saldo adeudado total, la lista de esas ventas (con saldo y antigüedad en días de cada una) y el total general.
+- `scripts/check-pending-sales-without-client.js`: diagnóstico de solo lectura que cuenta cuántas ventas pendientes/parciales ya existentes quedaron sin cliente, por compañía.
+- Migración `add_client_activo_and_phone_index`: agrega `activo` (default `true`) a `clients` y un índice `(companyId, telefono)`. Puramente aditiva.
+- Tests de integración (`tests/sale-credit.test.js`, `tests/clients.test.js`): venta pendiente/parcial sin cliente rechazada, venta pagada con cliente opcional, creación y reutilización de cliente por celular desde la venta, celular inválido rechazado, asignar cliente a una venta existente (incluye rechazo entre compañías y sobre ventas anuladas), activar/desactivar cliente, y cálculo de cartera (saldo, antigüedad, exclusión de ventas pagadas/anuladas).
+
+### Cambiado
+
+- `createSale` ahora responde con el código de error correcto según la causa (400 para "stock insuficiente" o "producto no encontrado", antes siempre 500) en vez de un 500 genérico para cualquier error de validación dentro de la transacción.
+
+### Nota para revisar
+
+- `deleteClient` (borrado físico) hoy **no** está bloqueado por historial: `sales.client_id` es `ON DELETE SET NULL`, así que se puede borrar un cliente con ventas (incluida una pendiente) y la venta queda huérfana de cliente, sin fallar. Con la cartera ya siendo una función real, esto es un hueco: recomiendo preferir "desactivar" sobre "eliminar" para cualquier cliente con historial mientras no se decida si vale la pena cambiar esa relación a `RESTRICT` (cambio de esquema más grande, no lo hice sin confirmar).
+
 ## 1.0.1
 
 ### En palabras simples (para contarle a los clientes)

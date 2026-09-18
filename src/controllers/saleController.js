@@ -1,30 +1,56 @@
 // venta_inventario_app/backend/src/controllers/saleController.js
 
 const { PrismaClient } = require('@prisma/client');
+const { findOrCreateCliente } = require('./clienteController');
 const prisma = new PrismaClient();
+
+// Estados de pago que dejan un saldo pendiente — para estos, el cliente ya
+// no es opcional: sin saber quién debe, no hay a quién cobrarle ni cómo
+// armar la cartera (ver clienteController.getCartera).
+const ESTADOS_A_CREDITO = ['PENDIENTE', 'PARCIAL'];
 
 // Función para crear una nueva venta
 const createSale = async (req, res) => {
-  // 1. Recibimos también estadoPago del body
-  const { items, clientId, total, estadoPago } = req.body; 
-  const userId = req.userId; 
-  const companyId = req.companyId; 
+  // clienteNuevo permite crear (o reutilizar, por celular) un cliente en la
+  // misma operación que la venta, para no obligar al vendedor a salirse del
+  // POS a crear el cliente aparte primero.
+  const { items, clientId, clienteNuevo, total, estadoPago } = req.body;
+  const userId = req.userId;
+  const companyId = req.companyId;
 
   if (!items || items.length === 0) {
     return res.status(400).json({ error: 'La venta debe contener al menos un producto.' });
   }
 
+  const esACredito = ESTADOS_A_CREDITO.includes(estadoPago);
+  if (esACredito && !clientId && !clienteNuevo) {
+    return res.status(400).json({ error: 'Para una venta pendiente o parcial, el cliente es obligatorio.' });
+  }
+
   try {
-    const newSale = await prisma.$transaction(async (tx) => {
-      // 1.5 Si viene un cliente, verificar que pertenezca a esta compañía
-      //     (evita asociar la venta a un cliente de otra compañía).
+    const { sale: newSale, cliente, clienteReutilizado } = await prisma.$transaction(async (tx) => {
+      let resolvedClientId = null;
+      let cliente = null;
+      let clienteReutilizado = false;
+
+      // 1.5 Resolver el cliente: uno existente (validando que sea de esta
+      //     compañía) o uno nuevo/reutilizado a partir de clienteNuevo.
       if (clientId) {
         const client = await tx.client.findFirst({
           where: { id: parseInt(clientId), companyId },
         });
         if (!client) {
-          throw new Error('El cliente indicado no existe o no pertenece a tu compañía.');
+          const err = new Error('El cliente indicado no existe o no pertenece a tu compañía.');
+          err.status = 400;
+          throw err;
         }
+        resolvedClientId = client.id;
+        cliente = client;
+      } else if (clienteNuevo) {
+        const resultado = await findOrCreateCliente(tx, companyId, clienteNuevo);
+        resolvedClientId = resultado.cliente.id;
+        cliente = resultado.cliente;
+        clienteReutilizado = resultado.reutilizado;
       }
 
       // 2. Crear la venta principal incluyendo el estado de pago
@@ -34,7 +60,7 @@ const createSale = async (req, res) => {
           total: parseFloat(total),
           userId: userId,
           companyId: companyId,
-          clientId: clientId ? parseInt(clientId) : null,
+          clientId: resolvedClientId,
           estado: 'Completada',
           estadoPago: estadoPago || 'PAGADA', // <-- Campo nuevo guardado
         },
@@ -52,7 +78,9 @@ const createSale = async (req, res) => {
         });
 
         if (!product) {
-          throw new Error(`Producto no encontrado o no pertenece a tu compañía (ID: ${item.productId}).`);
+          const err = new Error(`Producto no encontrado o no pertenece a tu compañía (ID: ${item.productId}).`);
+          err.status = 400;
+          throw err;
         }
 
         // CRÍTICO: el descuento de stock debe ser una operación atómica que
@@ -68,7 +96,9 @@ const createSale = async (req, res) => {
           data: { stockActual: { decrement: item.cantidad } },
         });
         if (stockUpdate.count === 0) {
-          throw new Error(`Stock insuficiente para el producto: ${product.nombre}.`);
+          const err = new Error(`Stock insuficiente para el producto: ${product.nombre}.`);
+          err.status = 400;
+          throw err;
         }
 
         await tx.saleItem.create({
@@ -94,13 +124,85 @@ const createSale = async (req, res) => {
           },
         });
       }
-      return sale;
+      return { sale, cliente, clienteReutilizado };
     });
 
-    res.status(201).json({ message: 'Venta registrada con éxito', sale: newSale });
+    res.status(201).json({
+      message: 'Venta registrada con éxito',
+      sale: newSale,
+      cliente: cliente || undefined,
+      clienteReutilizado,
+    });
   } catch (error) {
     console.error('Error al registrar la venta:', error);
-    res.status(500).json({ error: error.message || 'Error interno al registrar la venta.' });
+    res.status(error.status || 500).json({ error: error.message || 'Error interno al registrar la venta.' });
+  }
+};
+
+// Asigna (o cambia) el cliente de una venta ya existente — pensado para
+// ventas PENDIENTE/PARCIAL que quedaron sin cliente de antes de esta
+// validación, pero funciona sobre cualquier venta no anulada. Acepta un
+// clientId existente o clienteNuevo (mismo find-or-create por celular que
+// createSale). No requiere admin: es una corrección operativa normal.
+const asignarClienteAVenta = async (req, res) => {
+  const companyId = req.companyId;
+  const saleId = parseInt(req.params.id, 10);
+  const { clientId, clienteNuevo } = req.body;
+
+  if (!Number.isInteger(saleId)) {
+    return res.status(400).json({ error: 'Venta inválida.' });
+  }
+
+  if (!clientId && !clienteNuevo) {
+    return res.status(400).json({ error: 'Debes indicar un cliente existente (clientId) o uno nuevo (clienteNuevo).' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({ where: { id: saleId, companyId } });
+      if (!sale) {
+        const err = new Error('Venta no encontrada o no pertenece a tu compañía.');
+        err.status = 404;
+        throw err;
+      }
+      if (sale.estado === 'ANULADA') {
+        const err = new Error('No puedes asignar un cliente a una venta anulada.');
+        err.status = 400;
+        throw err;
+      }
+
+      let resolvedClientId;
+      let cliente;
+      let clienteReutilizado = false;
+
+      if (clientId) {
+        const client = await tx.client.findFirst({ where: { id: parseInt(clientId), companyId } });
+        if (!client) {
+          const err = new Error('El cliente indicado no existe o no pertenece a tu compañía.');
+          err.status = 400;
+          throw err;
+        }
+        resolvedClientId = client.id;
+        cliente = client;
+      } else {
+        const resultado = await findOrCreateCliente(tx, companyId, clienteNuevo);
+        resolvedClientId = resultado.cliente.id;
+        cliente = resultado.cliente;
+        clienteReutilizado = resultado.reutilizado;
+      }
+
+      const updatedSale = await tx.sale.update({
+        where: { id: saleId },
+        data: { clientId: resolvedClientId },
+      });
+
+      return { sale: updatedSale, cliente, clienteReutilizado };
+    });
+
+    res.json({ message: 'Cliente asignado a la venta con éxito.', ...result });
+  } catch (error) {
+    console.error('Error al asignar cliente a la venta:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Error interno al asignar el cliente.' });
   }
 };
 
@@ -217,7 +319,7 @@ const getSalesHistory = async (req, res) => {
             select: { nombreUsuario: true }, // Solo necesitamos el nombre de usuario
           },
           client: { // <-- ¡AHORA SÍ DESCOMENTADO! Incluye la información del cliente
-            select: { nombre: true },
+            select: { id: true, nombre: true, telefono: true },
           },
           saleItems: {
             include: {
@@ -257,6 +359,7 @@ module.exports = {
   createSale,
   getSalesHistory,
   anularVenta,
+  asignarClienteAVenta,
 };
 
 
