@@ -1,5 +1,18 @@
 # Changelog
 
+## Sin publicar
+
+### Cambiado
+
+- Correo de recuperación de contraseña: el remitente ya no está fijo en `onboarding@resend.dev` (el dominio de pruebas de Resend, que solo entrega al correo de la propia cuenta) — ahora usa la variable `EMAIL_FROM`, con `Vendita <no-reply@mail.tyndallcore.com>` como valor por defecto. Ese dominio ya está verificado en Resend (SPF, DKIM, DMARC).
+- Contenido del correo de recuperación mejorado: asunto más claro, aclara que "alguien" solicitó el cambio (no asume que fue el destinatario), y separa en su propia línea que ignorar el correo no tiene ningún efecto (la contraseña actual sigue siendo válida).
+
+### Agregado
+
+- `.env.example` con todas las variables de entorno reales que usa el backend, documentadas.
+- Sección "Correos (Resend)" en el README explicando `RESEND_API_KEY` y `EMAIL_FROM`.
+- `EMAIL_FROM` agregada a `render.yaml` (mismo valor en staging y producción, no es sensible).
+
 ## 1.0.0
 
 ### En palabras simples (para contarle a los clientes)
