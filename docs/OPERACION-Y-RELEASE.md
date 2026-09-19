@@ -13,6 +13,17 @@ Cada push a `develop` o `main` **despliega solo**. Render ejecuta `prisma genera
 
 El staging de Vercel está protegido con login de Vercel (un `curl` normal recibe un `302`).
 
+## Dominios
+
+| Dirección | Qué es hoy |
+|---|---|
+| `vendita.tyndallcore.com` | **El link oficial** de Vendita. Es el único que se comparte. |
+| `venditapp.vercel.app`, `vendita-badgomez2727s-projects.vercel.app` | Aliases del mismo proyecto de Vercel. **Redirigen (307) al link oficial** (`frontend/vercel.json`). No se debe usar la app desde ahí: el backend solo acepta el origen oficial (CORS) y nadie podría iniciar sesión. |
+| `inventario-app-frontend-ashy.vercel.app` | Dominio original, de un proyecto viejo de Vercel. **Ya responde 404**; sigue en la lista de CORS del backend por herencia. |
+| `vendita-git-develop-badgomez2727s-projects.vercel.app` | Staging (protegido con login de Vercel). |
+
+Reglas: (1) cualquier dominio desde el que se sirva la app **debe estar en `ALLOWED_ORIGINS` de `src/app.js`**, o redirigir al oficial; (2) la sesión (token) vive en el navegador **por dominio**: quien pase de un link a otro debe iniciar sesión de nuevo, aunque sus datos siguen intactos en el mismo backend.
+
 ## Variables de entorno
 
 ### Backend (Render)

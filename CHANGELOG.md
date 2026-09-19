@@ -2,6 +2,15 @@
 
 ## Sin publicar
 
+## 1.6.0
+
+### En palabras simples (para contarle a los clientes)
+
+- **Prueba Vendita 7 días gratis, sin tarjeta.** Los negocios nuevos entran con la prueba completa (hasta 500 productos). Si al terminar no activas un plan, tu cuenta queda en **modo solo lectura**: puedes ver toda tu información, pero no modificarla, y no se pierde nada de lo que cargaste. Cuando actives tu plan sigues donde quedaste.
+- **Precios claros:** plan Básico a $10.000 al mes (hasta 150 productos) y plan Pro a $20.000 al mes (hasta 500 productos y asistente con IA), pagando por Nequi, Daviplata o Bre-B.
+- **Subir tus productos desde Excel es más fácil:** al elegir el archivo ves de inmediato cuántos productos trae y si falta alguna columna, antes de subirlo; y si no logras armarlo, un botón te conecta por WhatsApp para que te ayudemos. El proveedor ya es opcional.
+- **Te avisamos en tu panel** cuando la prueba está por terminar y cuando terminó.
+
 ### Cambiado — prueba gratis de 7 días y modo solo lectura (se acabó el plan gratis para negocios nuevos)
 
 - Los negocios nuevos ya no reciben un plan gratis permanente: entran a una **prueba gratis** (plan `LANZAMIENTO`, hasta 500 productos, sin IA) de **7 días** por defecto. Antes eran 180 y, al vencer, caían al plan gratis de 50 productos.
