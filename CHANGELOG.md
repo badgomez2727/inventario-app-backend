@@ -9,6 +9,7 @@
 - El **catálogo público** de una cuenta en solo lectura responde `404` (no podría atender los pedidos).
 - `LAUNCH_PLAN_DAYS` vacía, `0` o inválida ahora da 7 días (antes `0` apagaba el lanzamiento y dejaba a los nuevos en `FREE`): un error de configuración ya no puede regalar un plan gratis permanente. `VENCIDO` no es un plan asignable.
 - **No cambian:** las compañías que ya estaban en `FREE`, ni la regla de que un plan de pago (`BASICO`/`PRO`) vencido cae a `FREE`. Decisión pendiente: si también deben pasar a solo lectura.
+- `scripts/vencer-prueba.js <companyId>`: script manual para probar el modo solo lectura sin esperar 7 días (simula por defecto, solo actúa sobre compañías en `LANZAMIENTO`, no toca las internas).
 - Tests: `tests/launch-plan.test.js` (20 pruebas: duración, valores inválidos, qué se bloquea y qué no, login, catálogo, exención del super admin, reactivación al pagar, cuentas FREE y BASICO vencido sin cambios).
 
 ### Cambiado — precios de los planes de pago y activación por días

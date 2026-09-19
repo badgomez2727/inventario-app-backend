@@ -110,6 +110,7 @@ Nunca se ejecutan solos; se invocan a mano con la `DATABASE_URL` del entorno que
 | `backfill-payments.js` | Migración de datos: crea el primer pago histórico (por el total, método `OTRO`) para las ventas `PAGADA` anteriores al módulo de pagos |
 | `check-pending-sales-without-client.js` | Diagnóstico de solo lectura: ventas a crédito sin cliente |
 | `check-latest-pedidos.js` | Diagnóstico de solo lectura: últimos pedidos del catálogo |
+| `vencer-prueba.js <companyId>` | Solo para **probar el modo solo lectura**: deja vencida la prueba de UNA compañía en plan `LANZAMIENTO`. Simula por defecto; `--ejecutar` aplica. Úsalo solo en staging o con una compañía de prueba; para revertirlo, un super admin le asigna un plan |
 | `crear-compania-interna.js` | Crea (o reutiliza) la compañía interna de Tyndall, marcada `esInterna`, con el super admin real y una cuenta demo |
 | `limpieza-companias.js` | **Destructivo.** Borra todas las compañías salvo las indicadas en `--keep` y las marcadas `esInterna`. Por defecto corre en `--dry-run` (solo cuenta); borrar de verdad exige `--ejecutar`. Revisar siempre el `DATABASE_URL` antes de correrlo y no usarlo contra producción sin una razón explícita |
 
