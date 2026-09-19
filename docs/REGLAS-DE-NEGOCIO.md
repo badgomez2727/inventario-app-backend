@@ -103,6 +103,16 @@ Ventas, movimientos de stock y abonos son el registro contable del negocio. Por 
 - Un plan con vencimiento que ya venció se trata como `FREE`: **todo lo cargado se conserva**, y solo se impide agregar productos nuevos por encima del techo del plan gratis. Las ventas nunca se bloquean.
 - Detalle y precios en `src/config/plans.js`.
 
+### Precios (COP)
+
+| Plan | Productos | Mensual | 6 meses | De por vida |
+|---|---|---|---|---|
+| `FREE` | 50 | gratis | | |
+| `BASICO` | 150 | $10.000 | $60.000 | $250.000 |
+| `PRO` (incluye IA) | 500 | $20.000 | $120.000 | $500.000 |
+
+El cobro es **manual**: el cliente paga por Nequi/Daviplata/Bre-B (página `/apoyar`), avisa por WhatsApp con el comprobante, y un super admin activa el plan **por los días que pagó** (30 = un mes, 180 = seis meses, 0 = sin vencimiento) desde el panel de compañías. Los precios están duplicados en `src/config/plans.js` (backend) y `SupportPage.jsx` (frontend, porque esa pantalla es pública): si cambias uno, cambia el otro.
+
 ### Plan de lanzamiento
 
 Durante la campaña de difusión, los negocios nuevos no pagan. Al registrarse (`POST /auth/register-company`) entran al plan `LANZAMIENTO`: gratis, hasta 500 productos, sin IA, con vencimiento.

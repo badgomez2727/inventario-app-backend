@@ -34,7 +34,11 @@ const PLAN_LIMITS = {
     label: 'Básico',
     maxProducts: 150,
     maxSalesPerMonth: Infinity,
-    priceCOP: 30000,
+    // Precios (COP): $10.000 al mes; priceCOP es el paquete de 6 meses (al
+    // mismo valor por mes). Solo informativos: el cobro es manual (Nequi) y
+    // el admin activa el plan con la duración pagada (30, 180 días…).
+    priceMonthlyCOP: 10000,
+    priceCOP: 60000,
     // priceLifetimeCOP: pago único, sin vencimiento (planExpiresAt queda null).
     // No hay una llave de plan separada para esto: al activarlo, el admin
     // manda { plan: 'BASICO', durationDays: null } en updateCompanyPlan
@@ -46,7 +50,8 @@ const PLAN_LIMITS = {
     label: 'Pro',
     maxProducts: 500,
     maxSalesPerMonth: Infinity,
-    priceCOP: 60000,
+    priceMonthlyCOP: 20000, // el doble de BASICO: cubre 500 productos y el asistente de IA
+    priceCOP: 120000, // 6 meses, mismo valor por mes
     priceLifetimeCOP: 500000, // mismo mecanismo que BASICO.priceLifetimeCOP
     durationDays: 180, // 6 meses
   },

@@ -94,6 +94,16 @@ const updateCompanyPlan = async (req, res) => {
     return res.status(400).json({ error: `Plan inválido. Debe ser uno de: ${validPlans.join(', ')}` });
   }
 
+  // durationDays: días de vigencia. Ausente = la duración estándar del plan;
+  // null o 0 = sin vencimiento (pago único); un entero positivo = esa cantidad
+  // de días (30 = un mes). Cualquier otra cosa se rechaza: antes un valor
+  // absurdo (texto, negativo) dejaba una fecha inválida o ya vencida.
+  if (durationDays !== undefined && durationDays !== null) {
+    if (!Number.isInteger(durationDays) || durationDays < 0 || durationDays > 3650) {
+      return res.status(400).json({ error: 'durationDays debe ser un entero entre 0 y 3650 (0 o null = sin vencimiento).' });
+    }
+  }
+
   const planConfig = getPlanLimits(plan);
   const effectiveDurationDays = durationDays !== undefined ? durationDays : planConfig.durationDays;
   const planExpiresAt = effectiveDurationDays

@@ -2,6 +2,20 @@
 
 ## Sin publicar
 
+### Cambiado — precios de los planes de pago y activación por días
+
+- **Básico sube a $10.000 al mes** (antes equivalía a $5.000: $30.000 por 6 meses) y **Pro a $20.000 al mes** (antes $10.000, igual que el nuevo Básico); 6 meses a $60.000 y $120.000, y los pagos únicos de por vida no cambian ($250.000 y $500.000). Cada plan lleva ahora `priceMonthlyCOP`. Los precios son informativos: el cobro sigue siendo manual.
+- `PATCH /api/admin/companies/:id/plan` valida `durationDays` (entero de 0 a 3650, `null` o ausente): antes aceptaba cualquier valor, incluso texto o negativos, y dejaba una fecha inválida o ya vencida. Permite activar un plan por un mes (30 días).
+- Tests en `tests/launch-plan.test.js`. Docs: tabla de precios en `docs/REGLAS-DE-NEGOCIO.md`.
+
+## 1.5.0
+
+### En palabras simples (para contarle a los clientes)
+
+- **Empieza gratis, sin tarjeta.** Los negocios nuevos entran al plan de lanzamiento: hasta 500 productos, con ventas, cartera, catálogo en línea y pedidos por WhatsApp. Cuando termina el periodo de lanzamiento no pierdes nada de lo que cargaste.
+- **Una página de inicio renovada** que explica en lenguaje simple qué hace Vendita, cómo se empieza y qué incluye la oferta, con ayuda por WhatsApp para arrancar.
+- **Te avisamos** en tu panel cuando el periodo de lanzamiento está por terminar, y también cuando un plan de pago vence (antes ese aviso no aparecía).
+
 ### Agregado — plan de lanzamiento (gratis) y preparación para la campaña
 
 - Plan nuevo `LANZAMIENTO` (`config/plans.js`): **gratis**, con techo de **500 productos** (el de PRO) y **sin el asistente de IA** (que gasta tokens reales y sigue siendo exclusivo de PRO). Todo negocio que se registra entra a este plan con vencimiento; al vencer cae solo al plan FREE (50 productos) **conservando todo lo que cargó** — solo se bloquea agregar productos nuevos por encima del techo. Sin migración: `plan` ya era un texto.

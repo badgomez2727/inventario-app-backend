@@ -151,4 +151,38 @@ describe('Un super admin puede asignar el plan LANZAMIENTO a mano', () => {
     const dias = (new Date(res.body.planExpiresAt).getTime() - Date.now()) / DIA_MS;
     expect(dias).toBeGreaterThan(179);
   });
+
+  async function asignarPlan(body) {
+    const interna = await createCompany();
+    const superAdmin = await createUser(interna.id, 'super_admin_sistema');
+    const objetivo = await createCompany();
+    const res = await request(app)
+      .patch(`/api/admin/companies/${objetivo.id}/plan`)
+      .set(auth(signToken(superAdmin)))
+      .send(body);
+    return res;
+  }
+
+  test('durationDays: 30 activa el plan por un mes (cobro mensual)', async () => {
+    const res = await asignarPlan({ plan: 'BASICO', durationDays: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body.plan).toBe('BASICO');
+    expect((new Date(res.body.planExpiresAt).getTime() - Date.now()) / DIA_MS).toBeCloseTo(30, 2);
+  });
+
+  test('durationDays 0 o null deja el plan sin vencimiento (pago único)', async () => {
+    for (const durationDays of [0, null]) {
+      const res = await asignarPlan({ plan: 'PRO', durationDays });
+      expect(res.status).toBe(200);
+      expect(res.body.planExpiresAt).toBeNull();
+    }
+  });
+
+  test('rechaza una duración inválida (texto, negativa, decimal o absurda)', async () => {
+    for (const durationDays of ['treinta', -5, 1.5, 999999]) {
+      const res = await asignarPlan({ plan: 'BASICO', durationDays });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/durationDays/);
+    }
+  });
 });

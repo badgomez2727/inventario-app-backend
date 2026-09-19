@@ -137,7 +137,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 | Método y ruta | Descripción |
 |---|---|
 | `GET /companies` | Lista todas las compañías |
-| `PATCH /companies/:id/plan` | Cambia el plan: `FREE`, `LANZAMIENTO`, `BASICO` o `PRO` (con duración, o vitalicio) |
+| `PATCH /companies/:id/plan` | Cambia el plan: `FREE`, `LANZAMIENTO`, `BASICO` o `PRO`. `durationDays` opcional: ausente = duración estándar del plan (180); un entero de 1 a 3650 = esos días (30 = un mes); `0` o `null` = sin vencimiento. Cualquier otro valor responde `400` |
 | `PATCH /companies/:id/activo` | Activa o desactiva una compañía (corta el acceso de sus usuarios de inmediato) |
 
 ## Raíz
