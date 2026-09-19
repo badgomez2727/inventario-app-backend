@@ -17,18 +17,18 @@ const PLAN_LIMITS = {
     priceCOP: 0,
     durationDays: null, // no vence
   },
-  // Plan de lanzamiento (campaña de difusión): todo negocio nuevo entra acá,
-  // gratis, con el techo de productos de PRO pero SIN el asistente de IA
-  // (gasta tokens reales y sigue siendo exclusivo de PRO). Vence solo y el
-  // negocio cae a FREE (con todo lo que ya cargó intacto); el precio
-  // definitivo se decide después, con datos de uso reales. Ver
-  // getLaunchPlanDays() para la duración y para apagarlo.
+  // Prueba gratis de lanzamiento (campaña de difusión): todo negocio nuevo
+  // entra acá, con el techo de productos de PRO pero SIN el asistente de IA
+  // (gasta tokens reales y sigue siendo exclusivo de PRO). Al vencer NO cae a
+  // FREE: la cuenta queda en SOLO LECTURA (estado VENCIDO, abajo) hasta que
+  // paguen un plan — sin perder nada de lo cargado. Ver getLaunchPlanDays()
+  // para la duración.
   LANZAMIENTO: {
-    label: 'Lanzamiento',
+    label: 'Prueba gratis',
     maxProducts: 500,
     maxSalesPerMonth: Infinity,
     priceCOP: 0,
-    durationDays: 180, // duración estándar si un super admin lo asigna a mano
+    durationDays: 7, // duración estándar si un super admin lo asigna a mano
   },
   BASICO: {
     label: 'Básico',
@@ -57,9 +57,24 @@ const PLAN_LIMITS = {
   },
 };
 
+// Estados que la app calcula pero que NO se pueden asignar como plan (por eso
+// están aparte de PLAN_LIMITS, cuyas llaves son los planes válidos del admin).
+// VENCIDO: la prueba gratis de lanzamiento terminó y no se ha pagado un plan.
+// La cuenta queda en solo lectura (ver authMiddleware): se ve todo, no se
+// modifica nada, y el catálogo público deja de recibir pedidos.
+const ESTADOS_ESPECIALES = {
+  VENCIDO: {
+    label: 'Prueba terminada',
+    maxProducts: 0,
+    maxSalesPerMonth: Infinity,
+    priceCOP: 0,
+    durationDays: null,
+  },
+};
+
 // Cualquier valor de `plan` que no reconozcamos cae en FREE por seguridad
 // (mejor limitar de más que dejar un plan desconocido sin límites).
-const getPlanLimits = (plan) => PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
+const getPlanLimits = (plan) => PLAN_LIMITS[plan] || ESTADOS_ESPECIALES[plan] || PLAN_LIMITS.FREE;
 
 // Devuelve el NOMBRE de plan que realmente aplica ahora mismo. Si el plan es
 // de pago (BASICO/PRO) y `planExpiresAt` ya pasó, la compañía se trata como
@@ -73,22 +88,25 @@ const getEffectivePlanName = (company) => {
   if (!company || !company.plan) return 'FREE';
   const { plan, planExpiresAt } = company;
   if (plan !== 'FREE' && planExpiresAt && new Date(planExpiresAt) < new Date()) {
-    return 'FREE';
+    // La prueba de lanzamiento vencida deja la cuenta en solo lectura hasta
+    // que paguen. Los planes de pago vencidos (BASICO/PRO) siguen cayendo a
+    // FREE, como siempre: no se cambia la regla de quien ya era cliente.
+    return plan === 'LANZAMIENTO' ? 'VENCIDO' : 'FREE';
   }
   return plan;
 };
 
-// Días de plan LANZAMIENTO que reciben los negocios que se registran ahora.
-// Se lee de LAUNCH_PLAN_DAYS en cada registro (sin desplegar código para
-// cambiarlo): sin definir = 180; un número positivo = esa cantidad de días;
-// 0 (o cualquier valor inválido) = lanzamiento apagado, y los negocios nuevos
-// entran directo al plan FREE.
-const DEFAULT_LAUNCH_PLAN_DAYS = 180;
+// Días de prueba gratis que reciben los negocios que se registran ahora. Se lee
+// de LAUNCH_PLAN_DAYS en cada registro (sin desplegar código para cambiarlo):
+// sin definir = 7; un entero positivo = esa cantidad de días. Un valor vacío,
+// 0 o inválido también da 7: un error de configuración nunca debe dejar a los
+// negocios nuevos en un plan gratis permanente.
+const DEFAULT_LAUNCH_PLAN_DAYS = 7;
 const getLaunchPlanDays = () => {
   const raw = process.env.LAUNCH_PLAN_DAYS;
   if (raw === undefined || raw === '') return DEFAULT_LAUNCH_PLAN_DAYS;
   const days = parseInt(raw, 10);
-  return Number.isInteger(days) && days > 0 ? days : 0;
+  return Number.isInteger(days) && days > 0 ? days : DEFAULT_LAUNCH_PLAN_DAYS;
 };
 
 module.exports = { PLAN_LIMITS, getPlanLimits, getEffectivePlanName, getLaunchPlanDays };

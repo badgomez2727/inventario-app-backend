@@ -14,6 +14,8 @@ Todas las rutas responden JSON (salvo PDF y CSV). Los errores llevan `{ "error":
 
 Recordatorio: todo `/api/*` responde `401` sin token, exista o no la ruta (ver [ARQUITECTURA.md](ARQUITECTURA.md)). Los recursos de otra compañía responden `404`.
 
+**Cuentas en solo lectura:** si la prueba gratis de la compañía terminó sin pagar, todo método que modifique datos (`POST`, `PUT`, `PATCH`, `DELETE`) bajo `/api` responde `403` con `{ "code": "CUENTA_SOLO_LECTURA", "error": "…" }`; los `GET` siguen funcionando y su catálogo público responde `404`. El super admin del sistema queda exento.
+
 Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalPages`, `currentPage` y `totalCount`.
 
 ---
@@ -22,7 +24,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 
 | Método y ruta | Descripción | Notas |
 |---|---|---|
-| `POST /auth/register-company` | Crea una compañía y su primer administrador. Entra al plan `LANZAMIENTO` (o `FREE` si el lanzamiento está apagado) | 15 por hora por IP |
+| `POST /auth/register-company` | Crea una compañía y su primer administrador. Entra al plan `LANZAMIENTO` (prueba gratis de 7 días por defecto, ver `LAUNCH_PLAN_DAYS`) | 15 por hora por IP |
 | `POST /auth/login` | Inicia sesión y devuelve el JWT (8 h) | 10 intentos / 15 min por IP |
 | `POST /auth/forgot-password` | Envía el correo de recuperación | Siempre responde 200; 5 / 15 min |
 | `POST /auth/reset-password` | Cambia la contraseña con el token del correo | El token vence a la hora |
@@ -126,7 +128,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 | `GET /inventory-value` | Admin | Valor del inventario a costo y a precio de venta (solo productos activos) |
 | `GET /monthly-sales` | Admin | Ventas por mes (`?startDate=&endDate=`); excluye anuladas |
 | `GET /top-selling-products` | Admin | Productos más vendidos (`?startDate=&endDate=`); excluye anuladas |
-| `GET /plan-status` | Usuario | Plan efectivo (`plan`), plan guardado en la cuenta (`storedPlan`, aunque haya vencido), vencimiento y uso frente a los límites |
+| `GET /plan-status` | Usuario | Plan efectivo (`plan`: `FREE`, `LANZAMIENTO`, `BASICO`, `PRO` o `VENCIDO` si la prueba terminó), plan guardado en la cuenta (`storedPlan`), vencimiento y uso frente a los límites |
 
 ## Pedido por WhatsApp con IA (`/api/pedidos-ia`) — PRO
 

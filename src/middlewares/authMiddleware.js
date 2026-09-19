@@ -2,8 +2,12 @@
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { jwtSecret } = require('../config/jwt'); // Importa la clave secreta
+const { getEffectivePlanName } = require('../config/plans');
 
 const prisma = new PrismaClient();
+
+// Métodos que solo consultan: se permiten aun con la cuenta en solo lectura.
+const METODOS_DE_LECTURA = ['GET', 'HEAD', 'OPTIONS'];
 
 const authMiddleware = async (req, res, next) => {
   // Obtener el token del encabezado Authorization
@@ -25,10 +29,26 @@ const authMiddleware = async (req, res, next) => {
     // operando hasta que el token expire solo.
     const company = await prisma.company.findUnique({
       where: { id: decoded.companyId },
-      select: { activo: true },
+      select: { activo: true, plan: true, planExpiresAt: true },
     });
     if (!company || !company.activo) {
       return res.status(403).json({ error: 'Tu compañía está desactivada. Contacta al administrador del sistema.' });
+    }
+
+    // Prueba gratis terminada y sin plan pago: la cuenta queda en SOLO LECTURA.
+    // Se puede entrar y consultar todo, pero ninguna operación que modifique
+    // datos (vender, editar productos, mover stock, confirmar pedidos…) pasa.
+    // Se aplica acá, en un solo lugar, para que ninguna ruta nueva se olvide
+    // de respetarlo. El super admin del sistema nunca queda bloqueado.
+    if (
+      !METODOS_DE_LECTURA.includes(req.method) &&
+      decoded.rol !== 'super_admin_sistema' &&
+      getEffectivePlanName(company) === 'VENCIDO'
+    ) {
+      return res.status(403).json({
+        code: 'CUENTA_SOLO_LECTURA',
+        error: 'Tu prueba gratis terminó y tu cuenta está en modo solo lectura: puedes ver tu información, pero no modificarla. Activa tu plan para volver a vender y editar tu inventario.',
+      });
     }
 
     // Adjuntar userId, companyId y rol al objeto de solicitud (req)

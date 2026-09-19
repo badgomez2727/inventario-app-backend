@@ -27,7 +27,7 @@ El staging de Vercel está protegido con login de Vercel (un `curl` normal recib
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Fotos de producto | Misma cuenta (sin ellas, subir/borrar fotos responde `503`) |
 | `ANTHROPIC_API_KEY` | Pedido por WhatsApp con IA | |
 | `AI_ORDER_MOCK` | `true` = respuestas simuladas sin gastar tokens | `true` en staging |
-| `LAUNCH_PLAN_DAYS` | Días de plan `LANZAMIENTO` (gratis, 500 productos, sin IA) que reciben los negocios que se registran. Vacía = 180; un número = esos días; **`0` apaga el lanzamiento** (los nuevos entran a `FREE`). Se lee en cada registro: se cambia en Render sin desplegar código | Opcional |
+| `LAUNCH_PLAN_DAYS` | Días de **prueba gratis** que reciben los negocios que se registran. Vacía, `0` o inválida = **7**. Al vencer sin pagar, la cuenta queda en solo lectura. Se lee en cada registro: se cambia en Render sin desplegar código | Opcional (ej. `14` para dar más tiempo) |
 | `PORT` | Puerto (lo pone Render) | |
 
 ### Frontend (Vercel)

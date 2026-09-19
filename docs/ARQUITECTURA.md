@@ -62,7 +62,7 @@ En `app.js`, el orden importa:
 
 Consecuencia importante: **cualquier ruta bajo `/api` responde `401` sin token, exista o no**. Por eso "responde 401 en vez de 404" *no* sirve para comprobar que un endpoint de `/api` ya está desplegado (sí sirve para rutas de `/public` y `/auth`).
 
-`authMiddleware` valida el JWT (vigencia de 8 horas), carga `req.userId`, `req.companyId` y `req.rol`, y **consulta en cada petición que la compañía siga activa**: desactivar una compañía corta el acceso de sus usuarios de inmediato, aunque tengan un token vigente.
+`authMiddleware` valida el JWT (vigencia de 8 horas), carga `req.userId`, `req.companyId` y `req.rol`, y **consulta en cada petición que la compañía siga activa** (desactivar una compañía corta el acceso de sus usuarios de inmediato, aunque tengan un token vigente) **y su plan**: si la prueba gratis terminó sin pagar, solo deja pasar los métodos de lectura (`GET`, `HEAD`, `OPTIONS`) y responde `403 CUENTA_SOLO_LECTURA` al resto. Al estar en un solo lugar, ninguna ruta nueva puede olvidarse de respetarlo.
 
 ## Aislamiento entre compañías
 
@@ -123,7 +123,7 @@ El navegador sube la foto **directo a Cloudinary**; el backend solo **firma** la
 
 ## Planes
 
-Se limita **solo el número de productos activos** (las ventas no se limitan, para no bloquear una venta real frente a un cliente): `FREE` 50, `LANZAMIENTO` 500, `BASICO` 150, `PRO` 500. El pedido por WhatsApp con IA es exclusivo de `PRO`. Un plan con vencimiento vencido se trata como `FREE`. Todo está en `config/plans.js`. El plan `LANZAMIENTO` (gratis, con vencimiento) es el que reciben los negocios nuevos durante la campaña de difusión; ver [REGLAS-DE-NEGOCIO.md](REGLAS-DE-NEGOCIO.md#plan-de-lanzamiento).
+Se limita **solo el número de productos activos** (las ventas no se limitan, para no bloquear una venta real frente a un cliente): `FREE` 50, `LANZAMIENTO` 500, `BASICO` 150, `PRO` 500. El pedido por WhatsApp con IA es exclusivo de `PRO`. Un plan de pago vencido se trata como `FREE`. Todo está en `config/plans.js`. El plan `LANZAMIENTO` es la prueba gratis que reciben los negocios nuevos; al vencer sin pagar la cuenta queda en **solo lectura** (estado calculado `VENCIDO`, aplicado en `authMiddleware`). Ver [REGLAS-DE-NEGOCIO.md](REGLAS-DE-NEGOCIO.md#prueba-gratis-y-modo-solo-lectura).
 
 ## Seguridad: resumen
 

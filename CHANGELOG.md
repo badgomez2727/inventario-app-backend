@@ -2,6 +2,15 @@
 
 ## Sin publicar
 
+### Cambiado — prueba gratis de 7 días y modo solo lectura (se acabó el plan gratis para negocios nuevos)
+
+- Los negocios nuevos ya no reciben un plan gratis permanente: entran a una **prueba gratis** (plan `LANZAMIENTO`, hasta 500 productos, sin IA) de **7 días** por defecto. Antes eran 180 y, al vencer, caían al plan gratis de 50 productos.
+- **Al vencer sin pagar, la cuenta queda en solo lectura** (estado calculado `VENCIDO`, "Prueba terminada"): `authMiddleware` rechaza cualquier `POST`/`PUT`/`PATCH`/`DELETE` con `403` y `code: 'CUENTA_SOLO_LECTURA'`, y los `GET` siguen funcionando. No se pierde nada de lo cargado, los usuarios pueden iniciar sesión, y al activarles un plan pago siguen donde quedaron. El super admin del sistema nunca queda bloqueado.
+- El **catálogo público** de una cuenta en solo lectura responde `404` (no podría atender los pedidos).
+- `LAUNCH_PLAN_DAYS` vacía, `0` o inválida ahora da 7 días (antes `0` apagaba el lanzamiento y dejaba a los nuevos en `FREE`): un error de configuración ya no puede regalar un plan gratis permanente. `VENCIDO` no es un plan asignable.
+- **No cambian:** las compañías que ya estaban en `FREE`, ni la regla de que un plan de pago (`BASICO`/`PRO`) vencido cae a `FREE`. Decisión pendiente: si también deben pasar a solo lectura.
+- Tests: `tests/launch-plan.test.js` (20 pruebas: duración, valores inválidos, qué se bloquea y qué no, login, catálogo, exención del super admin, reactivación al pagar, cuentas FREE y BASICO vencido sin cambios).
+
 ### Cambiado — precios de los planes de pago y activación por días
 
 - **Básico sube a $10.000 al mes** (antes equivalía a $5.000: $30.000 por 6 meses) y **Pro a $20.000 al mes** (antes $10.000, igual que el nuevo Básico); 6 meses a $60.000 y $120.000, y los pagos únicos de por vida no cambian ($250.000 y $500.000). Cada plan lleva ahora `priceMonthlyCOP`. Los precios son informativos: el cobro sigue siendo manual.

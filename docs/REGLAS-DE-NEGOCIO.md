@@ -76,14 +76,14 @@ Ventas, movimientos de stock y abonos son el registro contable del negocio. Por 
 - **Confirmar** crea una venta real con estado de pago `PENDIENTE` y su cliente (buscado o creado por celular), que aparece en la cartera, y descuenta el stock de forma atómica. Falla con un mensaje claro si ya no hay stock o si un producto fue desactivado.
 - **Rechazar** exige un motivo.
 - El pedido admite `tipoEntrega` (`RECOGE` o `DOMICILIO`), dirección y valor de domicilio (configurable por compañía).
-- El catálogo no está limitado por plan: lo tienen todas las compañías. Cada página lleva el pie "Hecho con Vendita".
+- El catálogo no está limitado por plan: lo tienen todas las compañías, salvo las que están en solo lectura (prueba terminada sin pagar). Cada página lleva el pie "Hecho con Vendita".
 
 ## Configuración del catálogo (por compañía)
 
 - `slug` (URL pública): minúsculas, sin tildes, solo letras, números y guiones; **único en todo el sistema**.
 - Para activar el catálogo hace falta un `slug` y al menos un número de WhatsApp de ventas (si no, un pedido no tendría a dónde llegar).
 - Cada número de WhatsApp se valida como celular colombiano y se normaliza.
-- Un catálogo desactivado, un slug inexistente y una compañía inactiva responden el mismo `404`, para no distinguir esos casos desde fuera.
+- Un catálogo desactivado, un slug inexistente, una compañía inactiva y una compañía en solo lectura responden el mismo `404`, para no distinguir esos casos desde fuera.
 
 ## Usuarios
 
@@ -93,14 +93,14 @@ Ventas, movimientos de stock y abonos son el registro contable del negocio. Por 
 
 ## Compañías
 
-- Se registran solas (`POST /auth/register-company`) con el plan de lanzamiento (`LANZAMIENTO`) mientras esté activo, o con `FREE` si está apagado. Ver "Plan de lanzamiento" más abajo.
+- Se registran solas (`POST /auth/register-company`) con la prueba gratis (`LANZAMIENTO`). Ver "Prueba gratis y modo solo lectura".
 - Un `super_admin_sistema` puede cambiar el plan (con duración o vitalicio) y **desactivar** una compañía; al hacerlo, sus usuarios pierden acceso de inmediato.
 
 ## Planes y límites
 
-- Solo se limita el **número de productos activos**: `FREE` 50, `LANZAMIENTO` 500, `BASICO` 150, `PRO` 500.
+- Solo se limita el **número de productos activos**: `FREE` 50, `LANZAMIENTO` (prueba gratis) 500, `BASICO` 150, `PRO` 500.
 - El **pedido por WhatsApp con IA** (`/api/pedidos-ia/parse`) es solo `PRO`, con límite de uso por hora. **`LANZAMIENTO` no lo incluye**: cada uso gasta tokens reales.
-- Un plan con vencimiento que ya venció se trata como `FREE`: **todo lo cargado se conserva**, y solo se impide agregar productos nuevos por encima del techo del plan gratis. Las ventas nunca se bloquean.
+- **Prueba terminada = solo lectura** (ver más abajo). Un plan de pago (`BASICO`/`PRO`) que ya venció sigue cayendo a `FREE`: todo lo cargado se conserva y solo se impide agregar productos por encima de 50.
 - Detalle y precios en `src/config/plans.js`.
 
 ### Precios (COP)
@@ -113,14 +113,18 @@ Ventas, movimientos de stock y abonos son el registro contable del negocio. Por 
 
 El cobro es **manual**: el cliente paga por Nequi/Daviplata/Bre-B (página `/apoyar`), avisa por WhatsApp con el comprobante, y un super admin activa el plan **por los días que pagó** (30 = un mes, 180 = seis meses, 0 = sin vencimiento) desde el panel de compañías. Los precios están duplicados en `src/config/plans.js` (backend) y `SupportPage.jsx` (frontend, porque esa pantalla es pública): si cambias uno, cambia el otro.
 
-### Plan de lanzamiento
+### Prueba gratis y modo solo lectura
 
-Durante la campaña de difusión, los negocios nuevos no pagan. Al registrarse (`POST /auth/register-company`) entran al plan `LANZAMIENTO`: gratis, hasta 500 productos, sin IA, con vencimiento.
+Los negocios nuevos **no tienen un plan gratis permanente**: prueban Vendita gratis y luego pagan. Al registrarse (`POST /auth/register-company`) entran al plan `LANZAMIENTO`: hasta 500 productos y **sin el asistente de IA**, con vencimiento.
 
-- **Duración:** la define la variable `LAUNCH_PLAN_DAYS` del backend, leída en cada registro (sin desplegar código). Vacía = 180 días; un número = esa cantidad de días; `0` = lanzamiento apagado y los negocios nuevos entran directo a `FREE`.
-- **Al vencer** caen a `FREE` sin perder datos. El Dashboard les avisa 15 días antes y cuando termina ("Terminó tu periodo de lanzamiento… conservas todo lo que cargaste"). `GET /api/reports/plan-status` devuelve `plan` (el efectivo) y `storedPlan` (el de la cuenta, aunque haya vencido).
-- **Cobrar después:** las decisiones son del super admin y se aplican por negocio (`PATCH /api/admin/companies/:id/plan`, con duración a medida): extender o adelantar el vencimiento, o pasar a `BASICO`/`PRO`. Los negocios que ya existían **no** reciben el plan de lanzamiento solos; se les puede asignar a mano.
-- **Pendiente:** todavía no hay una vista de uso por negocio (productos, ventas de los últimos 30 días, catálogo activo, pedidos) para decidir precios con datos; se puede agregar al panel de super admin.
+- **Duración:** la variable `LAUNCH_PLAN_DAYS` del backend, leída en cada registro (sin desplegar código). Vacía, `0` o inválida = **7 días** (un error de configuración nunca debe dejar a los negocios nuevos en un plan gratis permanente).
+- **Al vencer sin pagar → solo lectura** (estado calculado `VENCIDO`, "Prueba terminada"). `authMiddleware` rechaza cualquier método que no sea de lectura (`POST`, `PUT`, `PATCH`, `DELETE`) con `403` y `code: 'CUENTA_SOLO_LECTURA'`; los `GET` siguen funcionando, así que el negocio **ve toda su información y no pierde nada**. Los usuarios pueden iniciar sesión. El catálogo público de ese negocio responde `404` (no podría atender los pedidos). El super admin del sistema nunca queda bloqueado.
+- **Aviso:** el frontend muestra en todas las pantallas "Tu prueba gratis terminó: tu cuenta está en modo solo lectura" con un botón para activar el plan, y el Dashboard avisa cuando la prueba está por terminar. `GET /api/reports/plan-status` devuelve `plan` (el efectivo: `VENCIDO`) y `storedPlan` (`LANZAMIENTO`).
+- **Volver a operar:** el cliente paga (ver "Precios"), avisa por WhatsApp, y un super admin le activa `BASICO` o `PRO` por los días pagados (`PATCH /api/admin/companies/:id/plan`). Sigue donde quedó.
+- **Baja:** es manual. Una cuenta que no paga queda en solo lectura indefinidamente hasta que un super admin la desactive (`PATCH /api/admin/companies/:id/activo`); no hay baja automática ni borrado de datos. Un cron que dé de baja tras un plazo está pendiente.
+- **Quién queda fuera de esta regla:** las compañías que ya estaban en el plan `FREE` (clientes anteriores a la campaña) **no cambian**, y un plan de pago vencido sigue cayendo a `FREE`. Decisión pendiente: si esas cuentas también deben pasar a solo lectura.
+- **Negocios existentes:** no reciben la prueba solos; se puede asignar `LANZAMIENTO` a mano desde el panel de super admin.
+- **Pendiente:** no hay una vista de uso por negocio (productos, ventas de los últimos 30 días, catálogo activo, pedidos) para decidir precios con datos.
 
 ## Recuperación de contraseña
 

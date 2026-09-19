@@ -10,6 +10,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { findOrCreateCliente } = require('./clienteController');
 const { normalizePhoneCO } = require('../utils/phone');
+const { getEffectivePlanName } = require('../config/plans');
 const prisma = new PrismaClient();
 
 const TIPOS_ENTREGA = ['RECOGE', 'DOMICILIO'];
@@ -31,8 +32,20 @@ const findCompanyPublica = (slug) =>
       valorDomicilioDefault: true,
       activo: true,
       catalogoPublicoActivo: true,
+      plan: true,
+      planExpiresAt: true,
     },
   });
+
+// ¿Se puede ver y pedir en este catálogo? Además de existir, estar activa la
+// compañía y haberlo activado, la compañía no puede estar en solo lectura
+// (prueba gratis terminada sin plan): no podría atender los pedidos que le
+// lleguen. Mismo 404 genérico para todos los casos.
+const catalogoDisponible = (company) =>
+  Boolean(company) &&
+  company.activo &&
+  company.catalogoPublicoActivo &&
+  getEffectivePlanName(company) !== 'VENCIDO';
 
 // GET /public/catalogo/:slug
 const getCatalogoPublico = async (req, res) => {
@@ -41,7 +54,7 @@ const getCatalogoPublico = async (req, res) => {
   try {
     const company = await findCompanyPublica(slug);
 
-    if (!company || !company.activo || !company.catalogoPublicoActivo) {
+    if (!catalogoDisponible(company)) {
       return res.status(404).json({ error: 'Catálogo no encontrado.' });
     }
 
@@ -134,7 +147,7 @@ const crearPedido = async (req, res) => {
 
   try {
     const company = await findCompanyPublica(slug);
-    if (!company || !company.activo || !company.catalogoPublicoActivo) {
+    if (!catalogoDisponible(company)) {
       return res.status(404).json({ error: 'Catálogo no encontrado.' });
     }
 
