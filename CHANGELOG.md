@@ -11,6 +11,11 @@
 - El SKU de un producto inactivo sigue ocupado; al intentar reutilizarlo, el error `409` ahora lo dice ("ya existe un producto inactivo con ese SKU") en vez de un mensaje que parecía no tener sentido.
 - Tests de integración en `tests/product-activo.test.js`.
 
+### Documentado — documentación técnica del sistema
+
+- Nueva carpeta `docs/` con la documentación técnica de todo el sistema (backend y frontend): arquitectura y modelo de datos, reglas de negocio, referencia de la API con su nivel de acceso, y operación y checklist de release (variables de entorno, verificación de despliegues, problemas conocidos). Incluye una sección de "brechas conocidas" con las decisiones pendientes.
+- "Actualizar la documentación" pasa a ser un paso fijo del checklist de release.
+
 ## 1.3.0
 
 ### En palabras simples (para contarle a los clientes)

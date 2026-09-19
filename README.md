@@ -1,5 +1,7 @@
 # Vendita — backend
 
+> **Documentación técnica completa** (arquitectura, reglas de negocio, API, operación y checklist de release): carpeta [`docs/`](docs/README.md). Este README cubre la puesta en marcha operativa del backend.
+
 ## Entornos
 
 | Entorno | Rama git | Base de datos (Neon) | Servicio (Render) |
