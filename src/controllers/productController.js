@@ -19,17 +19,22 @@ const getProducts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
+    // Los productos inactivos (retirados: ver setProductActivo) no salen por
+    // defecto — así desaparecen solos de ventas, alertas de stock y demás
+    // pantallas que cargan esta lista. Solo el inventario los pide aparte.
+    const where = req.query.incluirInactivos === 'true'
+      ? { companyId }
+      : { companyId, activo: true };
+
     const [products, totalCount] = await Promise.all([
       prisma.product.findMany({
-        where: { companyId: companyId },
+        where,
         skip: skip,
         take: limit,
         orderBy: { nombre: 'asc' },
         include: { images: { orderBy: { orden: 'asc' } } },
       }),
-      prisma.product.count({ 
-        where: { companyId: companyId } 
-      })
+      prisma.product.count({ where })
     ]);
 
     res.json({
@@ -80,6 +85,12 @@ const createProduct = async (req, res) => {
   } catch (error) {
     console.error('Error al crear producto:', error);
     if (error.code === 'P2002') { // Código de error de Prisma para violación de unicidad
+      // El SKU sigue ocupado aunque el producto esté inactivo: hay que decirlo,
+      // porque en la lista normal no se ve y parecería un error sin sentido.
+      const existente = await prisma.product.findFirst({ where: { companyId, sku }, select: { activo: true } });
+      if (existente && !existente.activo) {
+        return res.status(409).json({ error: 'Ya existe un producto inactivo con ese SKU. Reactívalo desde Inventario (opción "Mostrar inactivos") o usa otro SKU.' });
+      }
       return res.status(409).json({ error: 'Ya existe un producto con el mismo SKU en esta compañía.' });
     }
     res.status(500).json({ error: 'Error interno del servidor al crear el producto.' });
@@ -202,6 +213,48 @@ const deleteProduct = async (req, res) => {
 };
 
 
+// Activa o desactiva un producto. Un producto con historial (ventas —incluso
+// anuladas—, pedidos o movimientos de stock) no se puede eliminar, así que
+// esta es la forma de retirarlo del inventario, de las ventas y del catálogo
+// sin perder ese historial. Es reversible y queda anotado en su historial de
+// cambios.
+const setProductActivo = async (req, res) => {
+  const productId = parseInt(req.params.id, 10);
+  const companyId = req.companyId;
+  const userId = req.userId;
+  const { activo } = req.body;
+
+  if (!Number.isInteger(productId)) {
+    return res.status(400).json({ error: 'Producto inválido.' });
+  }
+  if (typeof activo !== 'boolean') {
+    return res.status(400).json({ error: 'El campo "activo" debe ser true o false.' });
+  }
+
+  try {
+    const product = await prisma.product.findFirst({ where: { id: productId, companyId } });
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado o no pertenece a tu compañía.' });
+    }
+
+    if (product.activo === activo) {
+      return res.json({ message: `El producto ya estaba ${activo ? 'activo' : 'inactivo'}.`, product });
+    }
+
+    const [updated] = await prisma.$transaction([
+      prisma.product.update({ where: { id: productId }, data: { activo } }),
+      prisma.productChangeLog.create({
+        data: { productId, companyId, userId, campo: 'activo', valorAnterior: String(product.activo), valorNuevo: String(activo) },
+      }),
+    ]);
+
+    res.json({ message: `Producto ${activo ? 'reactivado' : 'desactivado'} con éxito.`, product: updated });
+  } catch (error) {
+    console.error('Error al cambiar el estado del producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 // NUEVA FUNCIÓN PARA LA CARGA MASIVA DE PRODUCTOS DESDE CSV
 const uploadProductsFromCsv = async (req, res) => {
   const companyId = req.companyId;
@@ -218,7 +271,7 @@ const uploadProductsFromCsv = async (req, res) => {
   const limits = getPlanLimits(getEffectivePlanName(company));
   let remainingSlots = limits.maxProducts === Infinity
     ? Infinity
-    : limits.maxProducts - await prisma.product.count({ where: { companyId } });
+    : limits.maxProducts - await prisma.product.count({ where: { companyId, activo: true } });
 
   // Recorremos cada producto recibido del CSV
   for (const product of productsData) {
@@ -360,6 +413,7 @@ module.exports = {
   createProduct,
   updateProduct, // <-- Función corregida
   deleteProduct,
+  setProductActivo,
   uploadProductsFromCsv,
   getProductChangeLog,
 };

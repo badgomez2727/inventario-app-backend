@@ -92,6 +92,14 @@ const createSale = async (req, res) => {
           throw err;
         }
 
+        // Una pantalla de ventas abierta desde antes puede seguir mostrando un
+        // producto que ya se desactivó: se rechaza acá, no solo en la lista.
+        if (!product.activo) {
+          const err = new Error(`El producto "${product.nombre}" está inactivo y no se puede vender.`);
+          err.status = 400;
+          throw err;
+        }
+
         // CRÍTICO: el descuento de stock debe ser una operación atómica que
         // valide la cantidad disponible en el MISMO statement — leer
         // stockActual y decidir aparte (como se hacía antes) deja una

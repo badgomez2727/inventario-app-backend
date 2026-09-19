@@ -21,7 +21,10 @@ const enforceProductLimit = async (req, res, next) => {
 
     if (limits.maxProducts === Infinity) return next();
 
-    const count = await prisma.product.count({ where: { companyId: req.companyId } });
+    // Solo cuentan los productos activos: uno retirado (inactivo) ya no se ve
+    // en ninguna parte, y como no se puede borrar si tiene historial, contarlo
+    // haría que retirar productos nunca liberara espacio del plan.
+    const count = await prisma.product.count({ where: { companyId: req.companyId, activo: true } });
     if (count >= limits.maxProducts) {
       return res.status(403).json({
         code: 'PLAN_LIMIT_REACHED',

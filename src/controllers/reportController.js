@@ -21,7 +21,7 @@ const getPlanStatus = async (req, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [productCount, salesThisMonth] = await Promise.all([
-      prisma.product.count({ where: { companyId } }),
+      prisma.product.count({ where: { companyId, activo: true } }),
       prisma.sale.count({ where: { companyId, fechaVenta: { gte: startOfMonth } } }),
     ]);
 
@@ -42,7 +42,7 @@ const getGeneralStats = async (req, res) => {
   const companyId = req.companyId;
   try {
     const [productCount, clientCount, supplierCount] = await Promise.all([
-      prisma.product.count({ where: { companyId } }),
+      prisma.product.count({ where: { companyId, activo: true } }),
       prisma.client.count({ where: { companyId } }),
       prisma.supplier.count({ where: { companyId } }),
     ]);
@@ -65,7 +65,7 @@ const getInventoryValue = async (req, res) => {
     const result = await prisma.$queryRaw`
       SELECT SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_compra") AS "totalInventoryCost", SUM(CAST(p."stock_actual" AS DECIMAL) * p."precio_venta") AS "totalInventoryValue"
       FROM productos AS p
-      WHERE p."company_id" = ${companyId};
+      WHERE p."company_id" = ${companyId} AND p."activo" = true;
     `;
 
     const totalInventoryCost = result[0]?.totalInventoryCost || 0;

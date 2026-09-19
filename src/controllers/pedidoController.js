@@ -92,11 +92,16 @@ const confirmarPedido = async (req, res) => {
 
       for (const item of pedido.items) {
         const stockUpdate = await tx.product.updateMany({
-          where: { id: item.productId, companyId, stockActual: { gte: item.cantidad } },
+          where: { id: item.productId, companyId, activo: true, stockActual: { gte: item.cantidad } },
           data: { stockActual: { decrement: item.cantidad } },
         });
         if (stockUpdate.count === 0) {
           const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (product && !product.activo) {
+            const err = new Error(`"${product.nombre}" está inactivo. Reactívalo para confirmar este pedido, o recházalo.`);
+            err.status = 400;
+            throw err;
+          }
           const err = new Error(`Ya no hay stock suficiente de "${product?.nombre || 'un producto'}" para confirmar este pedido.`);
           err.status = 400;
           throw err;

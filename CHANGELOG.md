@@ -1,5 +1,16 @@
 # Changelog
 
+## Sin publicar
+
+### Agregado — desactivar / reactivar productos
+
+- `PATCH /api/productos/:id/activo` (`{ activo: true|false }`): retira un producto del inventario, las ventas y el catálogo sin perder su historial, y lo reactiva cuando se quiera. Un producto con historial (ventas —incluidas las anuladas—, pedidos o movimientos de stock) no se puede eliminar, así que esta es su forma de "darse de baja", igual que ya existía para clientes, usuarios y compañías. Cada cambio queda en el historial del producto (`campo: 'activo'`); pedir el estado que ya tiene responde 200 sin duplicar el registro. Sin migración: la columna `activo` ya existía.
+- `GET /api/productos` ya no devuelve los inactivos por defecto (así desaparecen solos de ventas, alertas de stock y demás pantallas que cargan esa lista); `?incluirInactivos=true` los incluye, y el conteo/paginación siguen ese mismo filtro.
+- `POST /api/sales` rechaza un producto inactivo (`400`), aunque la pantalla de ventas siga abierta con datos viejos. Confirmar un pedido del catálogo con un producto desactivado también se rechaza, con un mensaje que dice qué hacer. Anular una venta con un producto ya desactivado sigue devolviendo el stock.
+- Los inactivos **no cuentan** para el límite de productos del plan (crear un producto y carga masiva), ni para el conteo de productos de las estadísticas y del estado del plan, ni para el valor del inventario: un producto retirado ya no se ve en ninguna parte, y como no se puede borrar si tiene historial, contarlo haría que retirar productos nunca liberara cupo.
+- El SKU de un producto inactivo sigue ocupado; al intentar reutilizarlo, el error `409` ahora lo dice ("ya existe un producto inactivo con ese SKU") en vez de un mensaje que parecía no tener sentido.
+- Tests de integración en `tests/product-activo.test.js`.
+
 ## 1.3.0
 
 ### En palabras simples (para contarle a los clientes)

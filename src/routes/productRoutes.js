@@ -6,6 +6,7 @@ const {
   createProduct,
   updateProduct,
   deleteProduct, // <-- Asegurarse de que esté aquí y con el nombre correcto
+  setProductActivo,
   uploadProductsFromCsv,
   getProductChangeLog,
 } = require('../controllers/productController'); // <-- De aquí se importan las funciones
@@ -25,6 +26,7 @@ router.get('/', authMiddleware, getProducts);
 router.post('/', authMiddleware, enforceProductLimit, createProduct);
 router.put('/:id', authMiddleware, updateProduct);
 router.delete('/:id', authMiddleware, deleteProduct); // <-- Esta es la línea 19 que estaba dando el error
+router.patch('/:id/activo', authMiddleware, setProductActivo);
 router.get('/:id/history', authMiddleware, getProductChangeLog);
 
 // Fotos de producto (catálogo público v1.2) — mismo permiso que editar el
