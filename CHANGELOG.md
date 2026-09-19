@@ -2,6 +2,25 @@
 
 ## Sin publicar
 
+### Agregado — plan de lanzamiento (gratis) y preparación para la campaña
+
+- Plan nuevo `LANZAMIENTO` (`config/plans.js`): **gratis**, con techo de **500 productos** (el de PRO) y **sin el asistente de IA** (que gasta tokens reales y sigue siendo exclusivo de PRO). Todo negocio que se registra entra a este plan con vencimiento; al vencer cae solo al plan FREE (50 productos) **conservando todo lo que cargó** — solo se bloquea agregar productos nuevos por encima del techo. Sin migración: `plan` ya era un texto.
+- Duración configurable sin desplegar código con `LAUNCH_PLAN_DAYS` (vacío = 180 días; un número = esa cantidad de días; `0` = lanzamiento apagado y los negocios nuevos entran al plan FREE). Se lee en cada registro.
+- Un super admin puede asignar `LANZAMIENTO` a mano (`PATCH /api/admin/companies/:id/plan`), con 180 días por defecto, para dárselo a negocios ya existentes.
+- `GET /api/reports/plan-status` ahora incluye `storedPlan` (el plan que figura en la cuenta aunque haya vencido) para poder avisar "terminó tu periodo de lanzamiento" en vez de un genérico "volviste a Gratis".
+- Límite de registros de compañías (`POST /auth/register-company`) subido de 5 a **15 por hora por IP**: en celulares muchos usuarios comparten la IP del operador, y con 5 una campaña de anuncios bloquearía a negocios legítimos.
+- Tests de integración en `tests/launch-plan.test.js` (plan al registrarse, duración, apagado, límites, vencimiento sin pérdida de datos, sin IA, asignación por super admin).
+
+## 1.4.0
+
+### En palabras simples (para contarle a los clientes)
+
+- **Retira productos sin perder nada.** Un producto que ya tiene ventas o movimientos no se puede borrar (así el historial siempre cuadra). Ahora puedes **desactivarlo**: deja de aparecer en el inventario, en las ventas y en tu catálogo, conserva su historial, y lo puedes reactivar cuando quieras.
+- **Te explica por qué no se puede borrar un producto**, en vez de un aviso genérico, y te sugiere desactivarlo.
+- **Tu catálogo en línea, más completo:** al tocar la foto de un producto tus clientes ven su detalle, con todas las fotos, el precio, si está disponible y la descripción.
+- **Cantidad escrita a mano** en el catálogo: tus clientes pueden teclear "24" en vez de tocar "+" veinte veces.
+- **Documentación técnica del sistema** para quien lo mantenga.
+
 ### Agregado — desactivar / reactivar productos
 
 - `PATCH /api/productos/:id/activo` (`{ activo: true|false }`): retira un producto del inventario, las ventas y el catálogo sin perder su historial, y lo reactiva cuando se quiera. Un producto con historial (ventas —incluidas las anuladas—, pedidos o movimientos de stock) no se puede eliminar, así que esta es su forma de "darse de baja", igual que ya existía para clientes, usuarios y compañías. Cada cambio queda en el historial del producto (`campo: 'activo'`); pedir el estado que ya tiene responde 200 sin duplicar el registro. Sin migración: la columna `activo` ya existía.

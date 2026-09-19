@@ -17,6 +17,19 @@ const PLAN_LIMITS = {
     priceCOP: 0,
     durationDays: null, // no vence
   },
+  // Plan de lanzamiento (campaña de difusión): todo negocio nuevo entra acá,
+  // gratis, con el techo de productos de PRO pero SIN el asistente de IA
+  // (gasta tokens reales y sigue siendo exclusivo de PRO). Vence solo y el
+  // negocio cae a FREE (con todo lo que ya cargó intacto); el precio
+  // definitivo se decide después, con datos de uso reales. Ver
+  // getLaunchPlanDays() para la duración y para apagarlo.
+  LANZAMIENTO: {
+    label: 'Lanzamiento',
+    maxProducts: 500,
+    maxSalesPerMonth: Infinity,
+    priceCOP: 0,
+    durationDays: 180, // duración estándar si un super admin lo asigna a mano
+  },
   BASICO: {
     label: 'Básico',
     maxProducts: 150,
@@ -60,4 +73,17 @@ const getEffectivePlanName = (company) => {
   return plan;
 };
 
-module.exports = { PLAN_LIMITS, getPlanLimits, getEffectivePlanName };
+// Días de plan LANZAMIENTO que reciben los negocios que se registran ahora.
+// Se lee de LAUNCH_PLAN_DAYS en cada registro (sin desplegar código para
+// cambiarlo): sin definir = 180; un número positivo = esa cantidad de días;
+// 0 (o cualquier valor inválido) = lanzamiento apagado, y los negocios nuevos
+// entran directo al plan FREE.
+const DEFAULT_LAUNCH_PLAN_DAYS = 180;
+const getLaunchPlanDays = () => {
+  const raw = process.env.LAUNCH_PLAN_DAYS;
+  if (raw === undefined || raw === '') return DEFAULT_LAUNCH_PLAN_DAYS;
+  const days = parseInt(raw, 10);
+  return Number.isInteger(days) && days > 0 ? days : 0;
+};
+
+module.exports = { PLAN_LIMITS, getPlanLimits, getEffectivePlanName, getLaunchPlanDays };

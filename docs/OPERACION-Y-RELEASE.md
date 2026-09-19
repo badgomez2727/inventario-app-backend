@@ -27,6 +27,7 @@ El staging de Vercel está protegido con login de Vercel (un `curl` normal recib
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Fotos de producto | Misma cuenta (sin ellas, subir/borrar fotos responde `503`) |
 | `ANTHROPIC_API_KEY` | Pedido por WhatsApp con IA | |
 | `AI_ORDER_MOCK` | `true` = respuestas simuladas sin gastar tokens | `true` en staging |
+| `LAUNCH_PLAN_DAYS` | Días de plan `LANZAMIENTO` (gratis, 500 productos, sin IA) que reciben los negocios que se registran. Vacía = 180; un número = esos días; **`0` apaga el lanzamiento** (los nuevos entran a `FREE`). Se lee en cada registro: se cambia en Render sin desplegar código | Opcional |
 | `PORT` | Puerto (lo pone Render) | |
 
 ### Frontend (Vercel)
@@ -35,6 +36,7 @@ El staging de Vercel está protegido con login de Vercel (un `curl` normal recib
 |---|---|---|
 | `REACT_APP_API_URL` | URL del backend | Cada entorno apunta a su backend. También la lee la función `api/og-catalogo.js` |
 | `REACT_APP_ENVIRONMENT` | `staging` activa el banner amarillo de staging | **Solo** en el entorno Preview; nunca en Production |
+| `REACT_APP_META_PIXEL_ID` | ID del píxel de Meta para medir los anuncios de Facebook. **Sin ella la medición no hace nada** | Solo en **Production** (en staging no, para no contaminar la medición). Requiere volver a construir (redeploy) al cambiarla |
 
 > Las variables `REACT_APP_*` **se incorporan al construir** (build). Por eso un build de Preview **no** debe promoverse a producción: llevaría la API y el banner de staging. Producción siempre se reconstruye con las variables de Production.
 

@@ -15,10 +15,12 @@ const loginLimiter = rateLimit({
 
 // Límite para /auth/register-company: protege contra registro masivo de
 // compañías/usuarios falsos (spam, bots, abuso de la campaña de difusión).
-// 5 registros por hora por IP.
+// 15 registros por hora por IP: con 5, una campaña de anuncios bloquearía a
+// negocios legítimos, porque en celulares muchos usuarios comparten la misma
+// IP del operador (CGNAT).
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 5,
+  max: 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados registros desde esta conexión. Intenta de nuevo más tarde.' },

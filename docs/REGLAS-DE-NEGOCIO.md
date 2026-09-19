@@ -93,15 +93,24 @@ Ventas, movimientos de stock y abonos son el registro contable del negocio. Por 
 
 ## Compañías
 
-- Se registran solas (`POST /auth/register-company`) con plan `FREE`.
+- Se registran solas (`POST /auth/register-company`) con el plan de lanzamiento (`LANZAMIENTO`) mientras esté activo, o con `FREE` si está apagado. Ver "Plan de lanzamiento" más abajo.
 - Un `super_admin_sistema` puede cambiar el plan (con duración o vitalicio) y **desactivar** una compañía; al hacerlo, sus usuarios pierden acceso de inmediato.
 
 ## Planes y límites
 
-- Solo se limita el **número de productos activos**: `FREE` 50, `BASICO` 150, `PRO` 500.
-- El **pedido por WhatsApp con IA** (`/api/pedidos-ia/parse`) es solo `PRO`, con límite de uso por hora.
-- Un plan de pago vencido se trata como `FREE`.
+- Solo se limita el **número de productos activos**: `FREE` 50, `LANZAMIENTO` 500, `BASICO` 150, `PRO` 500.
+- El **pedido por WhatsApp con IA** (`/api/pedidos-ia/parse`) es solo `PRO`, con límite de uso por hora. **`LANZAMIENTO` no lo incluye**: cada uso gasta tokens reales.
+- Un plan con vencimiento que ya venció se trata como `FREE`: **todo lo cargado se conserva**, y solo se impide agregar productos nuevos por encima del techo del plan gratis. Las ventas nunca se bloquean.
 - Detalle y precios en `src/config/plans.js`.
+
+### Plan de lanzamiento
+
+Durante la campaña de difusión, los negocios nuevos no pagan. Al registrarse (`POST /auth/register-company`) entran al plan `LANZAMIENTO`: gratis, hasta 500 productos, sin IA, con vencimiento.
+
+- **Duración:** la define la variable `LAUNCH_PLAN_DAYS` del backend, leída en cada registro (sin desplegar código). Vacía = 180 días; un número = esa cantidad de días; `0` = lanzamiento apagado y los negocios nuevos entran directo a `FREE`.
+- **Al vencer** caen a `FREE` sin perder datos. El Dashboard les avisa 15 días antes y cuando termina ("Terminó tu periodo de lanzamiento… conservas todo lo que cargaste"). `GET /api/reports/plan-status` devuelve `plan` (el efectivo) y `storedPlan` (el de la cuenta, aunque haya vencido).
+- **Cobrar después:** las decisiones son del super admin y se aplican por negocio (`PATCH /api/admin/companies/:id/plan`, con duración a medida): extender o adelantar el vencimiento, o pasar a `BASICO`/`PRO`. Los negocios que ya existían **no** reciben el plan de lanzamiento solos; se les puede asignar a mano.
+- **Pendiente:** todavía no hay una vista de uso por negocio (productos, ventas de los últimos 30 días, catálogo activo, pedidos) para decidir precios con datos; se puede agregar al panel de super admin.
 
 ## Recuperación de contraseña
 

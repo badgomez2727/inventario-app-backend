@@ -5,6 +5,7 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/jwt'); // Importa la clave secreta
+const { getLaunchPlanDays } = require('../config/plans');
 
 const prisma = new PrismaClient();
 
@@ -17,6 +18,13 @@ const registerCompanyAndAdmin = async (req, res) => {
   }
 
   try {
+    // Lanzamiento: el negocio nuevo entra al plan LANZAMIENTO (gratis, con
+    // más cupo de productos) hasta que venza; sin lanzamiento activo, FREE.
+    const launchDays = getLaunchPlanDays();
+    const planData = launchDays > 0
+      ? { plan: 'LANZAMIENTO', planExpiresAt: new Date(Date.now() + launchDays * 24 * 60 * 60 * 1000) }
+      : {};
+
     // 1. Crear la Compañía
     const newCompany = await prisma.company.create({
       data: {
@@ -25,6 +33,7 @@ const registerCompanyAndAdmin = async (req, res) => {
         direccion: companyAddress,
         telefono: companyPhone,
         activo: true, // Por defecto activa
+        ...planData,
       },
     });
 

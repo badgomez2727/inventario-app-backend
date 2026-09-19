@@ -27,6 +27,9 @@ const getPlanStatus = async (req, res) => {
 
     res.json({
       plan: effectivePlan,
+      // El plan que figura en la BD (aunque ya haya vencido): permite avisar
+      // "terminó tu periodo de lanzamiento" en vez de un genérico "volviste a Gratis".
+      storedPlan: company?.plan || effectivePlan,
       planExpiresAt: company?.planExpiresAt || null,
       label: limits.label,
       products: { used: productCount, limit: limits.maxProducts },

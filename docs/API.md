@@ -22,7 +22,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 
 | Método y ruta | Descripción | Notas |
 |---|---|---|
-| `POST /auth/register-company` | Crea una compañía (plan `FREE`) y su primer administrador | 5 por hora por IP |
+| `POST /auth/register-company` | Crea una compañía y su primer administrador. Entra al plan `LANZAMIENTO` (o `FREE` si el lanzamiento está apagado) | 15 por hora por IP |
 | `POST /auth/login` | Inicia sesión y devuelve el JWT (8 h) | 10 intentos / 15 min por IP |
 | `POST /auth/forgot-password` | Envía el correo de recuperación | Siempre responde 200; 5 / 15 min |
 | `POST /auth/reset-password` | Cambia la contraseña con el token del correo | El token vence a la hora |
@@ -126,7 +126,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 | `GET /inventory-value` | Admin | Valor del inventario a costo y a precio de venta (solo productos activos) |
 | `GET /monthly-sales` | Admin | Ventas por mes (`?startDate=&endDate=`); excluye anuladas |
 | `GET /top-selling-products` | Admin | Productos más vendidos (`?startDate=&endDate=`); excluye anuladas |
-| `GET /plan-status` | Usuario | Plan y uso actual frente a los límites |
+| `GET /plan-status` | Usuario | Plan efectivo (`plan`), plan guardado en la cuenta (`storedPlan`, aunque haya vencido), vencimiento y uso frente a los límites |
 
 ## Pedido por WhatsApp con IA (`/api/pedidos-ia`) — PRO
 
@@ -137,7 +137,7 @@ Convenciones: las listas paginadas usan `?page=` y `?limit=` y devuelven `totalP
 | Método y ruta | Descripción |
 |---|---|
 | `GET /companies` | Lista todas las compañías |
-| `PATCH /companies/:id/plan` | Cambia el plan (con duración, o vitalicio) |
+| `PATCH /companies/:id/plan` | Cambia el plan: `FREE`, `LANZAMIENTO`, `BASICO` o `PRO` (con duración, o vitalicio) |
 | `PATCH /companies/:id/activo` | Activa o desactiva una compañía (corta el acceso de sus usuarios de inmediato) |
 
 ## Raíz

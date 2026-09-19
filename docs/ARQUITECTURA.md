@@ -115,7 +115,7 @@ El navegador sube la foto **directo a Cloudinary**; el backend solo **firma** la
 | Endpoint | Límite |
 |---|---|
 | `POST /auth/login` | 10 intentos / 15 min por IP |
-| `POST /auth/register-company` | 5 / hora por IP |
+| `POST /auth/register-company` | 15 / hora por IP (en celulares muchos usuarios comparten IP; con menos, una campaña bloquearía a negocios legítimos) |
 | `POST /auth/forgot-password` | 5 / 15 min por IP |
 | `POST /api/pedidos-ia/parse` | 30 / hora |
 | `GET /public/catalogo/:slug` | 60 / minuto por IP |
@@ -123,7 +123,7 @@ El navegador sube la foto **directo a Cloudinary**; el backend solo **firma** la
 
 ## Planes
 
-Se limita **solo el número de productos activos** (las ventas no se limitan, para no bloquear una venta real frente a un cliente): `FREE` 50, `BASICO` 150, `PRO` 500. El pedido por WhatsApp con IA es exclusivo de `PRO`. Un plan de pago vencido se trata como `FREE`. Todo está en `config/plans.js`.
+Se limita **solo el número de productos activos** (las ventas no se limitan, para no bloquear una venta real frente a un cliente): `FREE` 50, `LANZAMIENTO` 500, `BASICO` 150, `PRO` 500. El pedido por WhatsApp con IA es exclusivo de `PRO`. Un plan con vencimiento vencido se trata como `FREE`. Todo está en `config/plans.js`. El plan `LANZAMIENTO` (gratis, con vencimiento) es el que reciben los negocios nuevos durante la campaña de difusión; ver [REGLAS-DE-NEGOCIO.md](REGLAS-DE-NEGOCIO.md#plan-de-lanzamiento).
 
 ## Seguridad: resumen
 
